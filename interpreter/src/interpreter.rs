@@ -16,9 +16,9 @@ impl LoxInterpreter {
     }
 
     pub fn run(&mut self, source: &str) -> anyhow::Result<()> {
-        let lexer = LoxLexer::new();
+        let lexer = LoxLexer::new(source);
 
-        let tokens = lexer.lex_into_tokens(source).context("lexing failed")?;
+        let tokens = lexer.lex_into_tokens().context("lexing failed")?;
 
         println!("lexed tokens: {tokens:?}");
 
