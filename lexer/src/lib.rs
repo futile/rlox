@@ -147,7 +147,7 @@ impl<'a> LoxLexer<'a> {
 fn take_first_char(input: &'_ mut &'_ str) -> Option<char> {
     let mut chars = input.chars();
     if let Some(c) = chars.next() {
-        *input = &mut chars.as_str();
+        *input = chars.as_str();
         Some(c)
     } else {
         None
