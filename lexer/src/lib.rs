@@ -91,10 +91,14 @@ impl<'a> LoxLexer<'a> {
     pub fn lex_into_tokens(mut self) -> Result<Vec<LoxToken<'a>>, LexerError> {
         let mut remaining_input = self.input;
 
-        while !remaining_input.is_empty() {
-            self.tokens
-                .push(Self::lex_single_token(&mut remaining_input)?);
+        while let Some(token) = self.lex_single_token(&mut remaining_input)? {
+            self.tokens.push(token);
         }
+
+        assert!(
+            remaining_input.is_empty(),
+            "lexing didn't consume all input"
+        );
 
         self.tokens
             .push(LoxToken::new(LoxTokenType::EOF, "", self.current_line));
@@ -102,14 +106,57 @@ impl<'a> LoxLexer<'a> {
         Ok(self.tokens)
     }
 
-    fn lex_single_token(_input_cursor: &mut &'a str) -> Result<LoxToken<'a>, LexerError> {
-        todo!()
+    fn lex_single_token(
+        &mut self,
+        input: &mut &'a str,
+    ) -> Result<Option<LoxToken<'a>>, LexerError> {
+        let full_input = *input;
+
+        let build_token = |token_type: LoxTokenType| -> LoxToken<'a> {
+            LoxToken::new(
+                token_type,
+                &full_input[..full_input.len() - input.len() + 1],
+                self.current_line,
+            )
+        };
+
+        let c = match take_first_char(input) {
+            None => return Ok(None),
+            Some(c) => c,
+        };
+
+        let new_token = match c {
+            '(' => build_token(LoxTokenType::LeftParen),
+            ')' => build_token(LoxTokenType::RightParen),
+            '{' => build_token(LoxTokenType::LeftBrace),
+            '}' => build_token(LoxTokenType::RightBrace),
+            ',' => build_token(LoxTokenType::Comma),
+            '.' => build_token(LoxTokenType::Dot),
+            '-' => build_token(LoxTokenType::Minus),
+            '+' => build_token(LoxTokenType::Plus),
+            ';' => build_token(LoxTokenType::Semicolon),
+            '*' => build_token(LoxTokenType::Star),
+            _ => panic!("unexpected character: {c}"),
+        };
+
+        Ok(Some(new_token))
+    }
+}
+
+/// Extract the first char from `input` and advance the slice.
+fn take_first_char(input: &'_ mut &'_ str) -> Option<char> {
+    let mut chars = input.chars();
+    if let Some(c) = chars.next() {
+        *input = &mut chars.as_str();
+        Some(c)
+    } else {
+        None
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{LoxLexer, LoxToken, LoxTokenType};
+    use crate::{take_first_char, LoxLexer, LoxToken, LoxTokenType};
 
     #[test]
     fn lex_empty_string() {
@@ -121,5 +168,66 @@ mod tests {
                 line: 1
             }]
         );
+    }
+
+    #[test]
+    fn lex_left_paren() {
+        assert_eq!(
+            &LoxLexer::new("(").lex_into_tokens().unwrap(),
+            &[
+                LoxToken {
+                    token_type: LoxTokenType::LeftParen,
+                    lexeme: "(",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::EOF,
+                    lexeme: "",
+                    line: 1
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn lex_left_right_paren() {
+        assert_eq!(
+            &LoxLexer::new("()").lex_into_tokens().unwrap(),
+            &[
+                LoxToken {
+                    token_type: LoxTokenType::LeftParen,
+                    lexeme: "(",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::RightParen,
+                    lexeme: ")",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::EOF,
+                    lexeme: "",
+                    line: 1
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn lex_single_chars() {
+        assert_eq!(
+            LoxLexer::new("(){},.-+;*").lex_into_tokens().unwrap().len(),
+            11
+        );
+    }
+
+    #[test]
+    fn take_first_char_works() {
+        let s = "abc";
+        let mut rem = s;
+
+        assert_eq!(take_first_char(&mut rem), Some('a'));
+        assert_eq!(take_first_char(&mut rem), Some('b'));
+        assert_eq!(take_first_char(&mut rem), Some('c'));
     }
 }
