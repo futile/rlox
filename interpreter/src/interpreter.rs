@@ -46,6 +46,8 @@ impl LoxInterpreter {
                 Ok(_) => self.run(&line)?,
                 Err(e) => return Err(anyhow!(e).context("error while reading from stdin")),
             }
+
+            line.clear();
         }
     }
 }

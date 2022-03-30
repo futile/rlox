@@ -136,7 +136,7 @@ impl<'a> LoxLexer<'a> {
             '+' => build_token(LoxTokenType::Plus),
             ';' => build_token(LoxTokenType::Semicolon),
             '*' => build_token(LoxTokenType::Star),
-            _ => panic!("unexpected character: {c}"),
+            _ => panic!("unexpected character: {c:?}"),
         };
 
         Ok(Some(new_token))
