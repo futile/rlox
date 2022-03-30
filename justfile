@@ -22,3 +22,7 @@ check-all: check-format clippy test
 # format everything using `cargo fmt`
 format:
     cargo fmt --all
+
+# count lines with tokei
+tokei:
+    tokei .
