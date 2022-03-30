@@ -1,5 +1,7 @@
 set shell := ["bash", "-c"]
 
+clippy_arguments := ""
+
 @_default:
     just --list --unsorted
 
@@ -9,8 +11,7 @@ check-format:
 
 # run clippy
 clippy:
-    # cargo clippy -- -D warnings
-    cargo clippy
+    cargo clippy -- {{clippy_arguments}}
 
 # run tests
 test:
