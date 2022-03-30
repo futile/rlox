@@ -4,3 +4,6 @@ Cargo.lock
 
 /.envrc
 /.direnv
+
+# don't want the flake lockfile in git for now
+/flake.lock
