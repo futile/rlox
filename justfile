@@ -9,7 +9,8 @@ check-format:
 
 # run clippy
 clippy:
-    cargo clippy -- -D warnings
+    # cargo clippy -- -D warnings
+    cargo clippy
 
 # run tests
 test:
