@@ -110,12 +110,12 @@ impl<'a> LoxLexer<'a> {
         &mut self,
         input: &mut &'a str,
     ) -> Result<Option<LoxToken<'a>>, LexerError> {
-        let full_input = *input;
+        let full_input: &'a str = &**input;
 
-        let build_token = |token_type: LoxTokenType| -> LoxToken<'a> {
+        let build_token = |remaining_input: &str, token_type: LoxTokenType| -> LoxToken<'a> {
             LoxToken::new(
                 token_type,
-                &full_input[..full_input.len() - input.len() + 1],
+                &full_input[..full_input.len() - remaining_input.len()],
                 self.current_line,
             )
         };
@@ -126,16 +126,16 @@ impl<'a> LoxLexer<'a> {
         };
 
         let new_token = match c {
-            '(' => build_token(LoxTokenType::LeftParen),
-            ')' => build_token(LoxTokenType::RightParen),
-            '{' => build_token(LoxTokenType::LeftBrace),
-            '}' => build_token(LoxTokenType::RightBrace),
-            ',' => build_token(LoxTokenType::Comma),
-            '.' => build_token(LoxTokenType::Dot),
-            '-' => build_token(LoxTokenType::Minus),
-            '+' => build_token(LoxTokenType::Plus),
-            ';' => build_token(LoxTokenType::Semicolon),
-            '*' => build_token(LoxTokenType::Star),
+            '(' => build_token(input, LoxTokenType::LeftParen),
+            ')' => build_token(input, LoxTokenType::RightParen),
+            '{' => build_token(input, LoxTokenType::LeftBrace),
+            '}' => build_token(input, LoxTokenType::RightBrace),
+            ',' => build_token(input, LoxTokenType::Comma),
+            '.' => build_token(input, LoxTokenType::Dot),
+            '-' => build_token(input, LoxTokenType::Minus),
+            '+' => build_token(input, LoxTokenType::Plus),
+            ';' => build_token(input, LoxTokenType::Semicolon),
+            '*' => build_token(input, LoxTokenType::Star),
             _ => panic!("unexpected character: {c:?}"),
         };
 
