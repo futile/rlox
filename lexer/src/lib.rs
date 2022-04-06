@@ -112,13 +112,14 @@ impl<'a> LoxLexer<'a> {
     ) -> Result<Option<LoxToken<'a>>, LexerError> {
         let full_input: &'a str = &**input;
 
-        let build_token = |remaining_input: &str, token_type: LoxTokenType| -> LoxToken<'a> {
-            LoxToken::new(
-                token_type,
-                &full_input[..full_input.len() - remaining_input.len()],
-                self.current_line,
-            )
-        };
+        let build_token =
+            |remaining_input: &str, line: usize, token_type: LoxTokenType| -> LoxToken<'a> {
+                LoxToken::new(
+                    token_type,
+                    &full_input[..full_input.len() - remaining_input.len()],
+                    line,
+                )
+            };
 
         let new_token = loop {
             let c = match take_first_char(input) {
@@ -127,23 +128,23 @@ impl<'a> LoxLexer<'a> {
             };
 
             match c {
-                '(' => break build_token(input, LoxTokenType::LeftParen),
-                ')' => break build_token(input, LoxTokenType::RightParen),
-                '{' => break build_token(input, LoxTokenType::LeftBrace),
-                '}' => break build_token(input, LoxTokenType::RightBrace),
-                ',' => break build_token(input, LoxTokenType::Comma),
-                '.' => break build_token(input, LoxTokenType::Dot),
-                '-' => break build_token(input, LoxTokenType::Minus),
-                '+' => break build_token(input, LoxTokenType::Plus),
-                ';' => break build_token(input, LoxTokenType::Semicolon),
-                '*' => break build_token(input, LoxTokenType::Star),
+                '(' => break build_token(input, self.current_line, LoxTokenType::LeftParen),
+                ')' => break build_token(input, self.current_line, LoxTokenType::RightParen),
+                '{' => break build_token(input, self.current_line, LoxTokenType::LeftBrace),
+                '}' => break build_token(input, self.current_line, LoxTokenType::RightBrace),
+                ',' => break build_token(input, self.current_line, LoxTokenType::Comma),
+                '.' => break build_token(input, self.current_line, LoxTokenType::Dot),
+                '-' => break build_token(input, self.current_line, LoxTokenType::Minus),
+                '+' => break build_token(input, self.current_line, LoxTokenType::Plus),
+                ';' => break build_token(input, self.current_line, LoxTokenType::Semicolon),
+                '*' => break build_token(input, self.current_line, LoxTokenType::Star),
                 '!' => {
                     let token_type = if take_first_char_if_eq(input, '=') {
                         LoxTokenType::BangEqual
                     } else {
                         LoxTokenType::Bang
                     };
-                    break build_token(input, token_type);
+                    break build_token(input, self.current_line, token_type);
                 }
                 '=' => {
                     let token_type = if take_first_char_if_eq(input, '=') {
@@ -151,7 +152,7 @@ impl<'a> LoxLexer<'a> {
                     } else {
                         LoxTokenType::Equal
                     };
-                    break build_token(input, token_type);
+                    break build_token(input, self.current_line, token_type);
                 }
                 '<' => {
                     let token_type = if take_first_char_if_eq(input, '=') {
@@ -159,7 +160,7 @@ impl<'a> LoxLexer<'a> {
                     } else {
                         LoxTokenType::Less
                     };
-                    break build_token(input, token_type);
+                    break build_token(input, self.current_line, token_type);
                 }
                 '>' => {
                     let token_type = if take_first_char_if_eq(input, '=') {
@@ -167,16 +168,18 @@ impl<'a> LoxLexer<'a> {
                     } else {
                         LoxTokenType::Greater
                     };
-                    break build_token(input, token_type);
+                    break build_token(input, self.current_line, token_type);
                 }
                 '/' => {
                     if take_first_char_if_eq(input, '/') {
                         // skip rest of comment
                         while take_first_char_if(input, |&c| c != '\n').is_some() {}
                     } else {
-                        break build_token(input, LoxTokenType::Slash);
+                        break build_token(input, self.current_line, LoxTokenType::Slash);
                     }
                 }
+                ' ' | '\r' | '\t' => (), // ignore whitespace
+                '\n' => self.current_line += 1,
                 _ => panic!("unexpected character: {c:?}"),
             }
         };
@@ -281,7 +284,10 @@ mod tests {
     #[test]
     fn lex_double_chars() {
         assert_eq!(
-            LoxLexer::new("!===<=>=").lex_into_tokens().unwrap().len(),
+            LoxLexer::new("!= == <= >=")
+                .lex_into_tokens()
+                .unwrap()
+                .len(),
             5
         );
     }
@@ -289,6 +295,29 @@ mod tests {
     #[test]
     fn lex_comment() {
         assert_eq!(LoxLexer::new("// abc").lex_into_tokens().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn lex_whitespace() {
+        assert_eq!(
+            LoxLexer::new(" \r\t  \r  \t")
+                .lex_into_tokens()
+                .unwrap()
+                .len(),
+            1
+        )
+    }
+
+    #[test]
+    fn lex_newline() {
+        assert_eq!(
+            &LoxLexer::new("\n").lex_into_tokens().unwrap(),
+            &[LoxToken {
+                token_type: LoxTokenType::EOF,
+                lexeme: "",
+                line: 2
+            }]
+        );
     }
 
     #[test]
