@@ -39,7 +39,7 @@ pub enum LoxTokenType<'a> {
     Fun,
     For,
     If,
-    NIL,
+    Nil,
     Or,
     Print,
     Return,
@@ -51,6 +51,30 @@ pub enum LoxTokenType<'a> {
 
     // EOF.
     EOF,
+}
+
+/// Try to parse a Lox keyword from a string, returns `None` if `input` is not a
+/// keyword
+fn try_str_to_keyword(input: &str) -> Option<LoxTokenType> {
+    match input {
+        "and" => Some(LoxTokenType::And),
+        "class" => Some(LoxTokenType::Class),
+        "else" => Some(LoxTokenType::Else),
+        "false" => Some(LoxTokenType::False),
+        "for" => Some(LoxTokenType::For),
+        "fun" => Some(LoxTokenType::Fun),
+        "if" => Some(LoxTokenType::If),
+        "nil" => Some(LoxTokenType::Nil),
+        "or" => Some(LoxTokenType::Or),
+        "print" => Some(LoxTokenType::Print),
+        "return" => Some(LoxTokenType::Return),
+        "super" => Some(LoxTokenType::Super),
+        "this" => Some(LoxTokenType::This),
+        "true" => Some(LoxTokenType::True),
+        "var" => Some(LoxTokenType::Var),
+        "while" => Some(LoxTokenType::While),
+        _ => None,
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -251,7 +275,10 @@ impl<'a> LoxLexer<'a> {
                     .is_some()
                     {}
 
-                    break build_token!(LoxTokenType::Identifier);
+                    match try_str_to_keyword(&full_input[..full_input.len() - input.len()]) {
+                        Some(keyword) => break build_token!(keyword),
+                        None => break build_token!(LoxTokenType::Identifier),
+                    }
                 }
                 ' ' | '\r' | '\t' => full_input = input, // ignore whitespace
                 '\n' => {
@@ -538,6 +565,47 @@ mod tests {
                 LoxToken {
                     token_type: LoxTokenType::Identifier,
                     lexeme: "orchid",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::EOF,
+                    lexeme: "",
+                    line: 1
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn lex_some_keywords() {
+        assert_eq!(
+            &LoxLexer::new("or and nil print return")
+                .lex_into_tokens()
+                .unwrap(),
+            &[
+                LoxToken {
+                    token_type: LoxTokenType::Or,
+                    lexeme: "or",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::And,
+                    lexeme: "and",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::Nil,
+                    lexeme: "nil",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::Print,
+                    lexeme: "print",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::Return,
+                    lexeme: "return",
                     line: 1
                 },
                 LoxToken {
