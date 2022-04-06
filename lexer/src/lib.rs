@@ -136,6 +136,41 @@ impl<'a> LoxLexer<'a> {
             '+' => build_token(input, LoxTokenType::Plus),
             ';' => build_token(input, LoxTokenType::Semicolon),
             '*' => build_token(input, LoxTokenType::Star),
+            '!' => {
+                let token_type = if take_first_char_if_eq(input, '=') {
+                    LoxTokenType::BangEqual
+                } else {
+                    LoxTokenType::Bang
+                };
+                build_token(input, token_type)
+            }
+            '=' => {
+                let token_type = if take_first_char_if_eq(input, '=') {
+                    LoxTokenType::EqualEqual
+                } else {
+                    LoxTokenType::Equal
+                };
+                build_token(input, token_type)
+            }
+            '<' => {
+                let token_type = if take_first_char_if_eq(input, '=') {
+                    LoxTokenType::LessEqual
+                } else {
+                    LoxTokenType::Less
+                };
+                build_token(input, token_type)
+            }
+            '>' => {
+                let token_type = if take_first_char_if_eq(input, '=') {
+                    LoxTokenType::GreaterEqual
+                } else {
+                    LoxTokenType::Greater
+                };
+                build_token(input, token_type)
+            }
+            '/' => {
+                todo!()
+            }
             _ => panic!("unexpected character: {c:?}"),
         };
 
@@ -145,13 +180,25 @@ impl<'a> LoxLexer<'a> {
 
 /// Extract the first char from `input` and advance the slice.
 fn take_first_char(input: &'_ mut &'_ str) -> Option<char> {
+    take_first_char_if(input, |_| true)
+}
+
+/// Consume the first char from `input` and advance the slice if `cond(f)` is
+/// true.
+fn take_first_char_if(input: &'_ mut &'_ str, cond: impl FnOnce(&char) -> bool) -> Option<char> {
     let mut chars = input.chars();
-    if let Some(c) = chars.next() {
-        *input = chars.as_str();
-        Some(c)
-    } else {
-        None
+    match chars.by_ref().peekable().next_if(cond) {
+        res @ Some(_) => {
+            *input = chars.as_str();
+            res
+        }
+        None => None,
     }
+}
+
+/// Consume the first char from `input` and advance the slice if it matches `c`
+fn take_first_char_if_eq(input: &'_ mut &'_ str, c: char) -> bool {
+    take_first_char_if(input, |&v| c == v).is_some()
 }
 
 #[cfg(test)]
@@ -216,8 +263,19 @@ mod tests {
     #[test]
     fn lex_single_chars() {
         assert_eq!(
-            LoxLexer::new("(){},.-+;*").lex_into_tokens().unwrap().len(),
-            11
+            LoxLexer::new("(){},.-+;*=!<>")
+                .lex_into_tokens()
+                .unwrap()
+                .len(),
+            15
+        );
+    }
+
+    #[test]
+    fn lex_double_chars() {
+        assert_eq!(
+            LoxLexer::new("!===<=>=").lex_into_tokens().unwrap().len(),
+            5
         );
     }
 
