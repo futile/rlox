@@ -43,7 +43,7 @@ impl LoxInterpreter {
 
             match io::stdin().read_line(&mut line) {
                 Ok(0) => return Ok(()), // EOF
-                Ok(_) => self.run(&line)?,
+                Ok(_) => self.run(line.trim_end_matches('\n'))?,
                 Err(e) => return Err(anyhow!(e).context("error while reading from stdin")),
             }
 
