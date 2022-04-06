@@ -243,10 +243,10 @@ impl<'a> LoxLexer<'a> {
                         };
                     }
                 }
-                ' ' | '\r' | '\t' => full_input = &full_input[1..], // ignore whitespace
+                ' ' | '\r' | '\t' => full_input = input, // ignore whitespace
                 '\n' => {
                     self.current_line += 1;
-                    full_input = &full_input[1..];
+                    full_input = input;
                 }
                 _ => panic!("unexpected character: {c:?}"),
             };
@@ -392,6 +392,17 @@ mod tests {
     #[test]
     fn lex_comment() {
         assert_eq!(LoxLexer::new("// abc").lex_into_tokens().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn lex_comment_and_more() {
+        assert_eq!(
+            LoxLexer::new("// abc\n123")
+                .lex_into_tokens()
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     #[test]
