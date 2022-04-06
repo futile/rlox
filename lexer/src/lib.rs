@@ -1,3 +1,4 @@
+use ordered_float::NotNan;
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -28,7 +29,7 @@ pub enum LoxTokenType<'a> {
     // Literals.
     Identifier,
     String(&'a str),
-    Number,
+    Number(NotNan<f64>),
 
     // Keywords.
     And,
@@ -125,13 +126,13 @@ impl<'a> LoxLexer<'a> {
             };
         }
 
-        let new_token = loop {
+        let new_token = 'token_loop: loop {
             let c = match take_first_char(input) {
                 None => return Ok(None),
                 Some(c) => c,
             };
 
-            match dbg!(c) {
+            match c {
                 '(' => break build_token!(LoxTokenType::LeftParen),
                 ')' => break build_token!(LoxTokenType::RightParen),
                 '{' => break build_token!(LoxTokenType::LeftBrace),
@@ -199,7 +200,48 @@ impl<'a> LoxLexer<'a> {
                     token.token_type =
                         LoxTokenType::String(&token.lexeme[1..token.lexeme.len() - 1]);
 
-                    break dbg!(token);
+                    break token;
+                }
+                c if c.is_ascii_digit() => {
+                    let mut dot_seen = false;
+                    loop {
+                        match take_first_char_if_lookahead_2(input, |&c1, &c2| {
+                            matches!((c1, c2), ('0'..='9', _) | ('.', Some('0'..='9')))
+                        }) {
+                            Some('.') => {
+                                if dot_seen {
+                                    panic!(
+                                        "dot appears twice in float literal (line {})",
+                                        self.current_line
+                                    );
+                                } else {
+                                    dot_seen = true;
+                                }
+                            }
+                            Some(_) => (), // consume
+                            None => {
+                                let mut token =
+                                    build_token!(LoxTokenType::Number(NotNan::default()));
+
+                                let val = token.lexeme.parse::<f64>().unwrap_or_else(|e| {
+                                    panic!(
+                                        "could not parse number (line {}): {e:?}",
+                                        self.current_line
+                                    )
+                                });
+
+                                token.token_type =
+                                    LoxTokenType::Number(NotNan::new(val).unwrap_or_else(|e| {
+                                        panic!(
+                                            "parsed number was somehow NaN (line {}): {e:?}",
+                                            self.current_line
+                                        )
+                                    }));
+
+                                break 'token_loop token;
+                            }
+                        };
+                    }
                 }
                 ' ' | '\r' | '\t' => full_input = &full_input[1..], // ignore whitespace
                 '\n' => {
@@ -219,8 +261,8 @@ fn take_first_char(input: &'_ mut &'_ str) -> Option<char> {
     take_first_char_if(input, |_| true)
 }
 
-/// Consume the first char from `input` and advance the slice if `cond(f)` is
-/// true.
+/// Consume the first char from `input` and advance the slice if
+/// `cond(first_char)` is true.
 fn take_first_char_if(input: &'_ mut &'_ str, cond: impl FnOnce(&char) -> bool) -> Option<char> {
     let mut chars = input.chars();
     match chars.by_ref().peekable().next_if(cond) {
@@ -232,6 +274,33 @@ fn take_first_char_if(input: &'_ mut &'_ str, cond: impl FnOnce(&char) -> bool) 
     }
 }
 
+/// Consume the first char from `input` and advance the slice if
+/// `cond(first_char, second_char)` is true.
+fn take_first_char_if_lookahead_2(
+    input: &'_ mut &'_ str,
+    cond: impl FnOnce(&char, &Option<char>) -> bool,
+) -> Option<char> {
+    let mut chars = input.chars();
+
+    let c1 = match chars.next() {
+        Some(c) => c,
+        None => return None,
+    };
+
+    let c2 = chars.next();
+
+    let mut chars = input.chars();
+
+    if cond(&c1, &c2) {
+        chars.next();
+        *input = chars.as_str();
+
+        Some(c1)
+    } else {
+        None
+    }
+}
+
 /// Consume the first char from `input` and advance the slice if it matches `c`
 fn take_first_char_if_eq(input: &'_ mut &'_ str, c: char) -> bool {
     take_first_char_if(input, |&v| c == v).is_some()
@@ -239,6 +308,8 @@ fn take_first_char_if_eq(input: &'_ mut &'_ str, c: char) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use ordered_float::NotNan;
+
     use crate::{take_first_char, LoxLexer, LoxToken, LoxTokenType};
 
     #[test]
@@ -383,6 +454,59 @@ mod tests {
     #[should_panic]
     fn lex_unterminated_string() {
         LoxLexer::new("\"").lex_into_tokens().unwrap();
+    }
+
+    #[test]
+    fn lex_number() {
+        assert_eq!(
+            &LoxLexer::new("123 123.04").lex_into_tokens().unwrap(),
+            &[
+                LoxToken {
+                    token_type: LoxTokenType::Number(NotNan::new(123f64).unwrap()),
+                    lexeme: "123",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::Number(NotNan::new(123.04f64).unwrap()),
+                    lexeme: "123.04",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::EOF,
+                    lexeme: "",
+                    line: 1
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn lex_number_and_dots() {
+        assert_eq!(
+            &LoxLexer::new(".123.").lex_into_tokens().unwrap(),
+            &[
+                LoxToken {
+                    token_type: LoxTokenType::Dot,
+                    lexeme: ".",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::Number(NotNan::new(123f64).unwrap()),
+                    lexeme: "123",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::Dot,
+                    lexeme: ".",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::EOF,
+                    lexeme: "",
+                    line: 1
+                }
+            ]
+        );
     }
 
     #[test]
