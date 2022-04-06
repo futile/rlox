@@ -243,6 +243,16 @@ impl<'a> LoxLexer<'a> {
                         };
                     }
                 }
+                'a'..='z' | 'A'..='Z' | '_' => {
+                    while take_first_char_if(
+                        input,
+                        |&c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'),
+                    )
+                    .is_some()
+                    {}
+
+                    break build_token!(LoxTokenType::Identifier);
+                }
                 ' ' | '\r' | '\t' => full_input = input, // ignore whitespace
                 '\n' => {
                     self.current_line += 1;
@@ -509,6 +519,25 @@ mod tests {
                 LoxToken {
                     token_type: LoxTokenType::Dot,
                     lexeme: ".",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::EOF,
+                    lexeme: "",
+                    line: 1
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn lex_single_identifier() {
+        assert_eq!(
+            &LoxLexer::new("orchid").lex_into_tokens().unwrap(),
+            &[
+                LoxToken {
+                    token_type: LoxTokenType::Identifier,
+                    lexeme: "orchid",
                     line: 1
                 },
                 LoxToken {
