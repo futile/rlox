@@ -120,58 +120,65 @@ impl<'a> LoxLexer<'a> {
             )
         };
 
-        let c = match take_first_char(input) {
-            None => return Ok(None),
-            Some(c) => c,
-        };
+        let new_token = loop {
+            let c = match take_first_char(input) {
+                None => return Ok(None),
+                Some(c) => c,
+            };
 
-        let new_token = match c {
-            '(' => build_token(input, LoxTokenType::LeftParen),
-            ')' => build_token(input, LoxTokenType::RightParen),
-            '{' => build_token(input, LoxTokenType::LeftBrace),
-            '}' => build_token(input, LoxTokenType::RightBrace),
-            ',' => build_token(input, LoxTokenType::Comma),
-            '.' => build_token(input, LoxTokenType::Dot),
-            '-' => build_token(input, LoxTokenType::Minus),
-            '+' => build_token(input, LoxTokenType::Plus),
-            ';' => build_token(input, LoxTokenType::Semicolon),
-            '*' => build_token(input, LoxTokenType::Star),
-            '!' => {
-                let token_type = if take_first_char_if_eq(input, '=') {
-                    LoxTokenType::BangEqual
-                } else {
-                    LoxTokenType::Bang
-                };
-                build_token(input, token_type)
+            match c {
+                '(' => break build_token(input, LoxTokenType::LeftParen),
+                ')' => break build_token(input, LoxTokenType::RightParen),
+                '{' => break build_token(input, LoxTokenType::LeftBrace),
+                '}' => break build_token(input, LoxTokenType::RightBrace),
+                ',' => break build_token(input, LoxTokenType::Comma),
+                '.' => break build_token(input, LoxTokenType::Dot),
+                '-' => break build_token(input, LoxTokenType::Minus),
+                '+' => break build_token(input, LoxTokenType::Plus),
+                ';' => break build_token(input, LoxTokenType::Semicolon),
+                '*' => break build_token(input, LoxTokenType::Star),
+                '!' => {
+                    let token_type = if take_first_char_if_eq(input, '=') {
+                        LoxTokenType::BangEqual
+                    } else {
+                        LoxTokenType::Bang
+                    };
+                    break build_token(input, token_type);
+                }
+                '=' => {
+                    let token_type = if take_first_char_if_eq(input, '=') {
+                        LoxTokenType::EqualEqual
+                    } else {
+                        LoxTokenType::Equal
+                    };
+                    break build_token(input, token_type);
+                }
+                '<' => {
+                    let token_type = if take_first_char_if_eq(input, '=') {
+                        LoxTokenType::LessEqual
+                    } else {
+                        LoxTokenType::Less
+                    };
+                    break build_token(input, token_type);
+                }
+                '>' => {
+                    let token_type = if take_first_char_if_eq(input, '=') {
+                        LoxTokenType::GreaterEqual
+                    } else {
+                        LoxTokenType::Greater
+                    };
+                    break build_token(input, token_type);
+                }
+                '/' => {
+                    if take_first_char_if_eq(input, '/') {
+                        // skip rest of comment
+                        while take_first_char_if(input, |&c| c != '\n').is_some() {}
+                    } else {
+                        break build_token(input, LoxTokenType::Slash);
+                    }
+                }
+                _ => panic!("unexpected character: {c:?}"),
             }
-            '=' => {
-                let token_type = if take_first_char_if_eq(input, '=') {
-                    LoxTokenType::EqualEqual
-                } else {
-                    LoxTokenType::Equal
-                };
-                build_token(input, token_type)
-            }
-            '<' => {
-                let token_type = if take_first_char_if_eq(input, '=') {
-                    LoxTokenType::LessEqual
-                } else {
-                    LoxTokenType::Less
-                };
-                build_token(input, token_type)
-            }
-            '>' => {
-                let token_type = if take_first_char_if_eq(input, '=') {
-                    LoxTokenType::GreaterEqual
-                } else {
-                    LoxTokenType::Greater
-                };
-                build_token(input, token_type)
-            }
-            '/' => {
-                todo!()
-            }
-            _ => panic!("unexpected character: {c:?}"),
         };
 
         Ok(Some(new_token))
@@ -263,11 +270,11 @@ mod tests {
     #[test]
     fn lex_single_chars() {
         assert_eq!(
-            LoxLexer::new("(){},.-+;*=!<>")
+            LoxLexer::new("(){},.-+;*=!<>/")
                 .lex_into_tokens()
                 .unwrap()
                 .len(),
-            15
+            16
         );
     }
 
@@ -277,6 +284,11 @@ mod tests {
             LoxLexer::new("!===<=>=").lex_into_tokens().unwrap().len(),
             5
         );
+    }
+
+    #[test]
+    fn lex_comment() {
+        assert_eq!(LoxLexer::new("// abc").lex_into_tokens().unwrap().len(), 1);
     }
 
     #[test]
