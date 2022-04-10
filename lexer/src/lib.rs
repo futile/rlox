@@ -1,3 +1,5 @@
+use std::str::Chars;
+
 use ordered_float::NotNan;
 use thiserror::Error;
 
@@ -109,7 +111,8 @@ pub enum LexerError {
 
 #[derive(Debug, Default)]
 pub struct LoxLexer<'a> {
-    input: &'a str,
+    remaining_input: &'a str,
+    current_advance: &'a str,
     current_line: usize,
     tokens: Vec<LoxToken<'a>>,
 }
@@ -117,22 +120,22 @@ pub struct LoxLexer<'a> {
 impl<'a> LoxLexer<'a> {
     pub fn new(input: &'a str) -> LoxLexer {
         LoxLexer {
-            input,
+            remaining_input: input,
+            current_advance: input,
             current_line: 1,
             tokens: Vec::new(),
         }
     }
 
     pub fn lex_into_tokens(mut self) -> Result<Vec<LoxToken<'a>>, LexerError> {
-        let mut remaining_input = self.input;
-
-        while let Some(token) = self.lex_single_token(&mut remaining_input)? {
+        while let Some(token) = self.lex_single_token()? {
             self.tokens.push(token);
         }
 
         assert!(
-            remaining_input.is_empty(),
-            "lexing didn't consume all input"
+            self.remaining_input.is_empty(),
+            "lexing didn't consume all input; remaining: {:?}",
+            self.remaining_input
         );
 
         self.tokens
@@ -141,106 +144,143 @@ impl<'a> LoxLexer<'a> {
         Ok(self.tokens)
     }
 
-    fn lex_single_token<'i>(
-        &mut self,
-        input: &mut &'i str,
-    ) -> Result<Option<LoxToken<'i>>, LexerError> {
-        let mut full_input: &'i str = &**input;
+    fn advance_if_n(&mut self, cond: impl FnOnce(Chars) -> bool) -> Option<char> {
+        if cond(self.current_advance.chars()) {
+            // extract next char
+            let mut chars = self.current_advance.chars();
+            let c = chars.next();
 
-        macro_rules! build_token {
-            ($token_type:expr, line = $line:expr) => {
-                LoxToken::new(
-                    $token_type,
-                    &full_input[..full_input.len() - input.len()],
-                    $line,
-                )
-            };
-            ($token_type:expr) => {
-                build_token!($token_type, line = self.current_line)
-            };
+            // check if the char was a newline, and if so, handle it
+            if c == Some('\n') {
+                self.current_line += 1;
+            }
+
+            // and advance to after this char
+            self.current_advance = chars.as_str();
+
+            c
+        } else {
+            None
         }
+    }
 
+    fn advance(&mut self) -> Option<char> {
+        self.advance_if_n(|_| true)
+    }
+
+    fn advance_if(&mut self, cond: impl FnOnce(char) -> bool) -> Option<char> {
+        self.advance_if_n(|mut chars| chars.next().map(cond) == Some(true))
+    }
+
+    fn advance_if_eq(&mut self, c: char) -> bool {
+        self.advance_if(|c2| c == c2).is_some()
+    }
+
+    fn current_lexeme(&self) -> &'a str {
+        &self.remaining_input[..self.remaining_input.len() - self.current_advance.len()]
+    }
+
+    fn build_token_with_line(&mut self, token_type: LoxTokenType<'a>, line: usize) -> LoxToken<'a> {
+        let lexeme = self.current_lexeme();
+        self.remaining_input = self.current_advance;
+        LoxToken::new(token_type, lexeme, line)
+    }
+
+    fn build_token(&mut self, token_type: LoxTokenType<'a>) -> LoxToken<'a> {
+        self.build_token_with_line(token_type, self.current_line)
+    }
+
+    fn skip_current_lexeme(&mut self) {
+        self.remaining_input = self.current_advance;
+    }
+
+    fn lex_single_token(&mut self) -> Result<Option<LoxToken<'a>>, LexerError> {
         let new_token = 'token_loop: loop {
-            let c = match take_first_char(input) {
+            let c = match self.advance() {
                 None => return Ok(None),
                 Some(c) => c,
             };
 
             match c {
-                '(' => break build_token!(LoxTokenType::LeftParen),
-                ')' => break build_token!(LoxTokenType::RightParen),
-                '{' => break build_token!(LoxTokenType::LeftBrace),
-                '}' => break build_token!(LoxTokenType::RightBrace),
-                ',' => break build_token!(LoxTokenType::Comma),
-                '.' => break build_token!(LoxTokenType::Dot),
-                '-' => break build_token!(LoxTokenType::Minus),
-                '+' => break build_token!(LoxTokenType::Plus),
-                ';' => break build_token!(LoxTokenType::Semicolon),
-                '*' => break build_token!(LoxTokenType::Star),
+                '(' => break self.build_token(LoxTokenType::LeftParen),
+                ')' => break self.build_token(LoxTokenType::RightParen),
+                '{' => break self.build_token(LoxTokenType::LeftBrace),
+                '}' => break self.build_token(LoxTokenType::RightBrace),
+                ',' => break self.build_token(LoxTokenType::Comma),
+                '.' => break self.build_token(LoxTokenType::Dot),
+                '-' => break self.build_token(LoxTokenType::Minus),
+                '+' => break self.build_token(LoxTokenType::Plus),
+                ';' => break self.build_token(LoxTokenType::Semicolon),
+                '*' => break self.build_token(LoxTokenType::Star),
                 '!' => {
-                    let token_type = if take_first_char_if_eq(input, '=') {
+                    let token_type = if self.advance_if_eq('=') {
                         LoxTokenType::BangEqual
                     } else {
                         LoxTokenType::Bang
                     };
-                    break build_token!(token_type);
+                    break self.build_token(token_type);
                 }
                 '=' => {
-                    let token_type = if take_first_char_if_eq(input, '=') {
+                    let token_type = if self.advance_if_eq('=') {
                         LoxTokenType::EqualEqual
                     } else {
                         LoxTokenType::Equal
                     };
-                    break build_token!(token_type);
+                    break self.build_token(token_type);
                 }
                 '<' => {
-                    let token_type = if take_first_char_if_eq(input, '=') {
+                    let token_type = if self.advance_if_eq('=') {
                         LoxTokenType::LessEqual
                     } else {
                         LoxTokenType::Less
                     };
-                    break build_token!(token_type);
+                    break self.build_token(token_type);
                 }
                 '>' => {
-                    let token_type = if take_first_char_if_eq(input, '=') {
+                    let token_type = if self.advance_if_eq('=') {
                         LoxTokenType::GreaterEqual
                     } else {
                         LoxTokenType::Greater
                     };
-                    break build_token!(token_type);
+                    break self.build_token(token_type);
                 }
                 '/' => {
-                    if take_first_char_if_eq(input, '/') {
-                        // skip rest of comment
-                        while take_first_char_if(input, |&c| c != '\n').is_some() {}
+                    if self.advance_if_eq('/') {
+                        // advance through rest of comment
+                        while self.advance_if(|c| c != '\n').is_some() {}
+
+                        // and skip it
+                        self.skip_current_lexeme();
                     } else {
-                        break build_token!(LoxTokenType::Slash);
+                        break self.build_token(LoxTokenType::Slash);
                     }
                 }
                 '"' => {
                     let starting_line = self.current_line;
-                    let mut token = loop {
-                        match take_first_char(input) {
+                    loop {
+                        match self.advance() {
                             Some('"') => {
-                                break build_token!(LoxTokenType::String(""), line = starting_line)
+                                let lexeme = self.current_lexeme();
+                                // strip leading and trailing ""
+                                let stripped_lexeme = &lexeme[1..lexeme.len() - 1];
+                                break 'token_loop self.build_token_with_line(
+                                    LoxTokenType::String(stripped_lexeme),
+                                    starting_line,
+                                );
                             }
-                            Some('\n') => self.current_line += 1,
                             Some(_) => (), // consume
                             None => return Err(LexerError::UnterminatedString { starting_line }),
-                        };
-                    };
-
-                    // strip surrounding ""
-                    token.token_type =
-                        LoxTokenType::String(&token.lexeme[1..token.lexeme.len() - 1]);
-
-                    break token;
+                        }
+                    }
                 }
                 c if c.is_ascii_digit() => {
                     let mut dot_seen = false;
                     loop {
-                        match take_first_char_if_lookahead_2(input, |&c1, &c2| {
-                            matches!((c1, c2), ('0'..='9', _) | ('.', Some('0'..='9')))
+                        match self.advance_if_n(|mut chars| {
+                            matches!(
+                                (chars.next(), chars.next()),
+                                (Some('0'..='9'), _) | (Some('.'), Some('0'..='9'))
+                            )
                         }) {
                             c @ (None | Some('.')) => {
                                 if matches!(c, Some('.')) && !dot_seen {
@@ -248,48 +288,38 @@ impl<'a> LoxLexer<'a> {
                                     continue;
                                 }
 
-                                let mut token =
-                                    build_token!(LoxTokenType::Number(NotNan::default()));
-
-                                let val = token.lexeme.parse::<f64>().map_err(|e| {
+                                let number = self.current_lexeme().parse::<f64>().map_err(|e| {
                                     LexerError::InvalidNumber {
                                         line: self.current_line,
                                         source: e,
                                     }
                                 })?;
 
-                                token.token_type =
-                                    LoxTokenType::Number(NotNan::new(val).unwrap_or_else(|e| {
+                                break 'token_loop self.build_token(LoxTokenType::Number(
+                                    NotNan::new(number).unwrap_or_else(|e| {
                                         panic!(
                                             "parsed number was somehow NaN (line {}): {e:?}",
                                             self.current_line
                                         )
-                                    }));
-
-                                break 'token_loop token;
+                                    }),
+                                ));
                             }
                             Some(_) => (), // consume
                         };
                     }
                 }
                 'a'..='z' | 'A'..='Z' | '_' => {
-                    while take_first_char_if(
-                        input,
-                        |&c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'),
-                    )
-                    .is_some()
+                    while self
+                        .advance_if(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
+                        .is_some()
                     {}
 
-                    match try_str_to_keyword(&full_input[..full_input.len() - input.len()]) {
-                        Some(keyword) => break build_token!(keyword),
-                        None => break build_token!(LoxTokenType::Identifier),
+                    match try_str_to_keyword(self.current_lexeme()) {
+                        Some(keyword) => break self.build_token(keyword),
+                        None => break self.build_token(LoxTokenType::Identifier),
                     }
                 }
-                ' ' | '\r' | '\t' => full_input = input, // ignore whitespace
-                '\n' => {
-                    self.current_line += 1;
-                    full_input = input;
-                }
+                ' ' | '\r' | '\t' | '\n' => self.skip_current_lexeme(), // ignore whitespace
                 _ => {
                     return Err(LexerError::UnexpectedCharacter {
                         line: self.current_line,
@@ -303,61 +333,11 @@ impl<'a> LoxLexer<'a> {
     }
 }
 
-/// Extract the first char from `input` and advance the slice.
-fn take_first_char(input: &'_ mut &'_ str) -> Option<char> {
-    take_first_char_if(input, |_| true)
-}
-
-/// Consume the first char from `input` and advance the slice if
-/// `cond(first_char)` is true.
-fn take_first_char_if(input: &'_ mut &'_ str, cond: impl FnOnce(&char) -> bool) -> Option<char> {
-    let mut chars = input.chars();
-    match chars.by_ref().peekable().next_if(cond) {
-        res @ Some(_) => {
-            *input = chars.as_str();
-            res
-        }
-        None => None,
-    }
-}
-
-/// Consume the first char from `input` and advance the slice if
-/// `cond(first_char, second_char)` is true.
-fn take_first_char_if_lookahead_2(
-    input: &'_ mut &'_ str,
-    cond: impl FnOnce(&char, &Option<char>) -> bool,
-) -> Option<char> {
-    let mut chars = input.chars();
-
-    let c1 = match chars.next() {
-        Some(c) => c,
-        None => return None,
-    };
-
-    let c2 = chars.next();
-
-    let mut chars = input.chars();
-
-    if cond(&c1, &c2) {
-        chars.next();
-        *input = chars.as_str();
-
-        Some(c1)
-    } else {
-        None
-    }
-}
-
-/// Consume the first char from `input` and advance the slice if it matches `c`
-fn take_first_char_if_eq(input: &'_ mut &'_ str, c: char) -> bool {
-    take_first_char_if(input, |&v| c == v).is_some()
-}
-
 #[cfg(test)]
 mod tests {
     use ordered_float::NotNan;
 
-    use crate::{take_first_char, LoxLexer, LoxToken, LoxTokenType};
+    use crate::{LoxLexer, LoxToken, LoxTokenType};
 
     #[test]
     fn lex_empty_input() {
@@ -624,15 +604,5 @@ mod tests {
                 }
             ]
         );
-    }
-
-    #[test]
-    fn take_first_char_works() {
-        let s = "abc";
-        let mut rem = s;
-
-        assert_eq!(take_first_char(&mut rem), Some('a'));
-        assert_eq!(take_first_char(&mut rem), Some('b'));
-        assert_eq!(take_first_char(&mut rem), Some('c'));
     }
 }
