@@ -230,6 +230,19 @@ impl<'a> LoxLexer<'a> {
         }
     }
 
+    fn lex_op_with_maybe_equals(
+        &mut self,
+        without_equals: LoxTokenType<'a>,
+        with_equals: LoxTokenType<'a>,
+    ) -> LoxToken<'a> {
+        let token_type = if self.advance_if_eq('=') {
+            with_equals
+        } else {
+            without_equals
+        };
+        self.build_token(token_type)
+    }
+
     fn lex_single_token(&mut self) -> Result<Option<LoxToken<'a>>, LexerError> {
         let new_token = 'token_loop: loop {
             let c = match self.advance() {
@@ -249,36 +262,22 @@ impl<'a> LoxLexer<'a> {
                 ';' => break self.build_token(LoxTokenType::Semicolon),
                 '*' => break self.build_token(LoxTokenType::Star),
                 '!' => {
-                    let token_type = if self.advance_if_eq('=') {
-                        LoxTokenType::BangEqual
-                    } else {
-                        LoxTokenType::Bang
-                    };
-                    break self.build_token(token_type);
+                    break self
+                        .lex_op_with_maybe_equals(LoxTokenType::Bang, LoxTokenType::BangEqual)
                 }
                 '=' => {
-                    let token_type = if self.advance_if_eq('=') {
-                        LoxTokenType::EqualEqual
-                    } else {
-                        LoxTokenType::Equal
-                    };
-                    break self.build_token(token_type);
+                    break self
+                        .lex_op_with_maybe_equals(LoxTokenType::Equal, LoxTokenType::EqualEqual)
                 }
                 '<' => {
-                    let token_type = if self.advance_if_eq('=') {
-                        LoxTokenType::LessEqual
-                    } else {
-                        LoxTokenType::Less
-                    };
-                    break self.build_token(token_type);
+                    break self
+                        .lex_op_with_maybe_equals(LoxTokenType::Less, LoxTokenType::LessEqual)
                 }
                 '>' => {
-                    let token_type = if self.advance_if_eq('=') {
-                        LoxTokenType::GreaterEqual
-                    } else {
-                        LoxTokenType::Greater
-                    };
-                    break self.build_token(token_type);
+                    break self.lex_op_with_maybe_equals(
+                        LoxTokenType::Greater,
+                        LoxTokenType::GreaterEqual,
+                    )
                 }
                 '/' => {
                     if self.advance_if_eq('/') {
