@@ -310,6 +310,16 @@ impl<'a> LoxLexer<'a> {
         Ok(())
     }
 
+    fn lex_line_comment(&mut self) {
+        assert_eq!(self.current_lexeme(), "//");
+
+        // advance through rest of comment
+        while self.advance_if(|c| c != '\n').is_some() {}
+
+        // and skip it
+        self.skip_current_lexeme();
+    }
+
     fn lex_single_token(&mut self) -> Result<Option<LoxToken<'a>>, LexerError> {
         let new_token = loop {
             let c = match self.advance() {
@@ -348,11 +358,7 @@ impl<'a> LoxLexer<'a> {
                 }
                 '/' => {
                     if self.advance_if_eq('/') {
-                        // advance through rest of comment
-                        while self.advance_if(|c| c != '\n').is_some() {}
-
-                        // and skip it
-                        self.skip_current_lexeme();
+                        self.lex_line_comment();
                     } else if self.advance_if_eq('*') {
                         self.lex_block_comment()?;
                     } else {
