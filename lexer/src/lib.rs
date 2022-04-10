@@ -231,6 +231,8 @@ impl<'a> LoxLexer<'a> {
     }
 
     fn lex_string(&mut self) -> Result<LoxToken<'a>, LexerError> {
+        assert_eq!(self.current_lexeme(), "\"");
+
         let starting_line = self.current_line;
         loop {
             match self.advance() {
@@ -260,6 +262,18 @@ impl<'a> LoxLexer<'a> {
             without_equals
         };
         self.build_token(token_type)
+    }
+
+    fn lex_keyword_or_identifier(&mut self) -> LoxToken<'a> {
+        while self
+            .advance_if(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
+            .is_some()
+        {}
+
+        match try_str_to_keyword(self.current_lexeme()) {
+            Some(keyword) => self.build_token(keyword),
+            None => self.build_token(LoxTokenType::Identifier),
+        }
     }
 
     fn lex_single_token(&mut self) -> Result<Option<LoxToken<'a>>, LexerError> {
@@ -311,17 +325,7 @@ impl<'a> LoxLexer<'a> {
                 }
                 '"' => break self.lex_string()?,
                 c if c.is_ascii_digit() => break self.lex_number()?,
-                'a'..='z' | 'A'..='Z' | '_' => {
-                    while self
-                        .advance_if(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
-                        .is_some()
-                    {}
-
-                    match try_str_to_keyword(self.current_lexeme()) {
-                        Some(keyword) => break self.build_token(keyword),
-                        None => break self.build_token(LoxTokenType::Identifier),
-                    }
-                }
+                'a'..='z' | 'A'..='Z' | '_' => break self.lex_keyword_or_identifier(),
                 ' ' | '\r' | '\t' | '\n' => self.skip_current_lexeme(), // ignore whitespace
                 _ => {
                     return Err(LexerError::UnexpectedCharacter {
