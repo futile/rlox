@@ -230,6 +230,25 @@ impl<'a> LoxLexer<'a> {
         }
     }
 
+    fn lex_string(&mut self) -> Result<LoxToken<'a>, LexerError> {
+        let starting_line = self.current_line;
+        loop {
+            match self.advance() {
+                Some('"') => {
+                    let lexeme = self.current_lexeme();
+                    // strip leading and trailing ""
+                    let stripped_lexeme = &lexeme[1..lexeme.len() - 1];
+                    break Ok(self.build_token_with_line(
+                        LoxTokenType::String(stripped_lexeme),
+                        starting_line,
+                    ));
+                }
+                Some(_) => (), // consume
+                None => return Err(LexerError::UnterminatedString { starting_line }),
+            }
+        }
+    }
+
     fn lex_op_with_maybe_equals(
         &mut self,
         without_equals: LoxTokenType<'a>,
@@ -244,7 +263,7 @@ impl<'a> LoxLexer<'a> {
     }
 
     fn lex_single_token(&mut self) -> Result<Option<LoxToken<'a>>, LexerError> {
-        let new_token = 'token_loop: loop {
+        let new_token = loop {
             let c = match self.advance() {
                 None => return Ok(None),
                 Some(c) => c,
@@ -290,27 +309,8 @@ impl<'a> LoxLexer<'a> {
                         break self.build_token(LoxTokenType::Slash);
                     }
                 }
-                '"' => {
-                    let starting_line = self.current_line;
-                    loop {
-                        match self.advance() {
-                            Some('"') => {
-                                let lexeme = self.current_lexeme();
-                                // strip leading and trailing ""
-                                let stripped_lexeme = &lexeme[1..lexeme.len() - 1];
-                                break 'token_loop self.build_token_with_line(
-                                    LoxTokenType::String(stripped_lexeme),
-                                    starting_line,
-                                );
-                            }
-                            Some(_) => (), // consume
-                            None => return Err(LexerError::UnterminatedString { starting_line }),
-                        }
-                    }
-                }
-                c if c.is_ascii_digit() => {
-                    break self.lex_number()?;
-                }
+                '"' => break self.lex_string()?,
+                c if c.is_ascii_digit() => break self.lex_number()?,
                 'a'..='z' | 'A'..='Z' | '_' => {
                     while self
                         .advance_if(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
