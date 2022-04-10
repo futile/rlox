@@ -107,6 +107,8 @@ pub enum LexerError {
     },
     #[error("unexpected character (line {line}): {character:?}")]
     UnexpectedCharacter { line: usize, character: char },
+    #[error("unterminated block comment (starting in line {starting_line})")]
+    UnterminatedBlockComment { starting_line: usize },
 }
 
 #[derive(Debug, Default)]
@@ -276,6 +278,38 @@ impl<'a> LoxLexer<'a> {
         }
     }
 
+    fn lex_block_comment(&mut self) -> Result<(), LexerError> {
+        assert_eq!(self.current_lexeme(), "/*");
+
+        let starting_line = self.current_line;
+        let mut comment_depth = 1;
+
+        loop {
+            match self.advance() {
+                Some('/') => {
+                    if self.advance_if_eq('*') {
+                        comment_depth += 1;
+                    }
+                }
+                Some('*') => {
+                    if self.advance_if_eq('/') {
+                        assert!(comment_depth >= 0);
+                        comment_depth -= 1;
+                        if comment_depth == 0 {
+                            break;
+                        }
+                    }
+                }
+                Some(_) => (), // consume
+                None => return Err(LexerError::UnterminatedBlockComment { starting_line }),
+            }
+        }
+
+        self.skip_current_lexeme();
+
+        Ok(())
+    }
+
     fn lex_single_token(&mut self) -> Result<Option<LoxToken<'a>>, LexerError> {
         let new_token = loop {
             let c = match self.advance() {
@@ -319,6 +353,8 @@ impl<'a> LoxLexer<'a> {
 
                         // and skip it
                         self.skip_current_lexeme();
+                    } else if self.advance_if_eq('*') {
+                        self.lex_block_comment()?;
                     } else {
                         break self.build_token(LoxTokenType::Slash);
                     }
@@ -426,6 +462,46 @@ mod tests {
     #[test]
     fn lex_comment() {
         assert_eq!(LoxLexer::new("// abc").lex_into_tokens().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn lex_block_comment() {
+        assert_eq!(
+            LoxLexer::new("/* abc */ 123")
+                .lex_into_tokens()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            LoxLexer::new("/* abc /* def */ ghi */ 123")
+                .lex_into_tokens()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            LoxLexer::new("/* abc /* def /* xyz */ vwq */ ghi */ 123")
+                .lex_into_tokens()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            &LoxLexer::new("/* \n */ 123").lex_into_tokens().unwrap(),
+            &[
+                LoxToken {
+                    token_type: LoxTokenType::Number(NotNan::new(123.0f64).unwrap()),
+                    lexeme: "123",
+                    line: 2
+                },
+                LoxToken {
+                    token_type: LoxTokenType::EOF,
+                    lexeme: "",
+                    line: 2
+                }
+            ]
+        );
     }
 
     #[test]
