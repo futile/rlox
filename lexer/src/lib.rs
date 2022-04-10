@@ -194,6 +194,42 @@ impl<'a> LoxLexer<'a> {
         self.remaining_input = self.current_advance;
     }
 
+    fn lex_number(&mut self) -> Result<LoxToken<'a>, LexerError> {
+        let mut dot_seen = false;
+        loop {
+            match self.advance_if_n(|mut chars| {
+                matches!(
+                    (chars.next(), chars.next()),
+                    (Some('0'..='9'), _) | (Some('.'), Some('0'..='9'))
+                )
+            }) {
+                c @ (None | Some('.')) => {
+                    if matches!(c, Some('.')) && !dot_seen {
+                        dot_seen = true;
+                        continue;
+                    }
+
+                    let number = self.current_lexeme().parse::<f64>().map_err(|e| {
+                        LexerError::InvalidNumber {
+                            line: self.current_line,
+                            source: e,
+                        }
+                    })?;
+
+                    break Ok(self.build_token(LoxTokenType::Number(
+                        NotNan::new(number).unwrap_or_else(|e| {
+                            panic!(
+                                "parsed number was somehow NaN (line {}): {e:?}",
+                                self.current_line
+                            )
+                        }),
+                    )));
+                }
+                Some(_) => (), // consume
+            };
+        }
+    }
+
     fn lex_single_token(&mut self) -> Result<Option<LoxToken<'a>>, LexerError> {
         let new_token = 'token_loop: loop {
             let c = match self.advance() {
@@ -274,39 +310,7 @@ impl<'a> LoxLexer<'a> {
                     }
                 }
                 c if c.is_ascii_digit() => {
-                    let mut dot_seen = false;
-                    loop {
-                        match self.advance_if_n(|mut chars| {
-                            matches!(
-                                (chars.next(), chars.next()),
-                                (Some('0'..='9'), _) | (Some('.'), Some('0'..='9'))
-                            )
-                        }) {
-                            c @ (None | Some('.')) => {
-                                if matches!(c, Some('.')) && !dot_seen {
-                                    dot_seen = true;
-                                    continue;
-                                }
-
-                                let number = self.current_lexeme().parse::<f64>().map_err(|e| {
-                                    LexerError::InvalidNumber {
-                                        line: self.current_line,
-                                        source: e,
-                                    }
-                                })?;
-
-                                break 'token_loop self.build_token(LoxTokenType::Number(
-                                    NotNan::new(number).unwrap_or_else(|e| {
-                                        panic!(
-                                            "parsed number was somehow NaN (line {}): {e:?}",
-                                            self.current_line
-                                        )
-                                    }),
-                                ));
-                            }
-                            Some(_) => (), // consume
-                        };
-                    }
+                    break self.lex_number()?;
                 }
                 'a'..='z' | 'A'..='Z' | '_' => {
                     while self
