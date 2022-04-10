@@ -511,6 +511,11 @@ mod tests {
     }
 
     #[test]
+    fn lex_unterminated_block_comment() {
+        assert!(LoxLexer::new("/*").lex_into_tokens().is_err());
+    }
+
+    #[test]
     fn lex_comment_and_more() {
         assert_eq!(
             LoxLexer::new("// abc\n123")
