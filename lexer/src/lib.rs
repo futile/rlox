@@ -95,7 +95,17 @@ impl<'a> LoxToken<'a> {
 }
 
 #[derive(Error, Debug)]
-pub enum LexerError {}
+pub enum LexerError {
+    #[error("unterminated string (starting in line {starting_line})")]
+    UnterminatedString { starting_line: usize },
+    #[error("unparseable number (line {line}): {source}")]
+    InvalidNumber {
+        line: usize,
+        source: std::num::ParseFloatError,
+    },
+    #[error("unexpected character (line {line}): {character:?}")]
+    UnexpectedCharacter { line: usize, character: char },
+}
 
 #[derive(Debug, Default)]
 pub struct LoxLexer<'a> {
@@ -216,7 +226,7 @@ impl<'a> LoxLexer<'a> {
                             }
                             Some('\n') => self.current_line += 1,
                             Some(_) => (), // consume
-                            None => panic!("unterminated string (line {})", self.current_line),
+                            None => return Err(LexerError::UnterminatedString { starting_line }),
                         };
                     };
 
@@ -232,27 +242,21 @@ impl<'a> LoxLexer<'a> {
                         match take_first_char_if_lookahead_2(input, |&c1, &c2| {
                             matches!((c1, c2), ('0'..='9', _) | ('.', Some('0'..='9')))
                         }) {
-                            Some('.') => {
-                                if dot_seen {
-                                    panic!(
-                                        "dot appears twice in float literal (line {})",
-                                        self.current_line
-                                    );
-                                } else {
+                            c @ (None | Some('.')) => {
+                                if matches!(c, Some('.')) && !dot_seen {
                                     dot_seen = true;
+                                    continue;
                                 }
-                            }
-                            Some(_) => (), // consume
-                            None => {
+
                                 let mut token =
                                     build_token!(LoxTokenType::Number(NotNan::default()));
 
-                                let val = token.lexeme.parse::<f64>().unwrap_or_else(|e| {
-                                    panic!(
-                                        "could not parse number (line {}): {e:?}",
-                                        self.current_line
-                                    )
-                                });
+                                let val = token.lexeme.parse::<f64>().map_err(|e| {
+                                    LexerError::InvalidNumber {
+                                        line: self.current_line,
+                                        source: e,
+                                    }
+                                })?;
 
                                 token.token_type =
                                     LoxTokenType::Number(NotNan::new(val).unwrap_or_else(|e| {
@@ -264,6 +268,7 @@ impl<'a> LoxLexer<'a> {
 
                                 break 'token_loop token;
                             }
+                            Some(_) => (), // consume
                         };
                     }
                 }
@@ -285,7 +290,12 @@ impl<'a> LoxLexer<'a> {
                     self.current_line += 1;
                     full_input = input;
                 }
-                _ => panic!("unexpected character: {c:?}"),
+                _ => {
+                    return Err(LexerError::UnexpectedCharacter {
+                        line: self.current_line,
+                        character: c,
+                    })
+                }
             };
         };
 
@@ -499,9 +509,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn lex_unterminated_string() {
-        LoxLexer::new("\"").lex_into_tokens().unwrap();
+        assert!(LoxLexer::new("\"").lex_into_tokens().is_err());
     }
 
     #[test]
