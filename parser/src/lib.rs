@@ -1,3 +1,6 @@
+pub mod ast_printer;
+pub mod expr;
+
 #[derive(Debug)]
 pub struct LoxParser {}
 

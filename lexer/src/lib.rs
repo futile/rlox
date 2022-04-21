@@ -1,9 +1,9 @@
 use std::str::Chars;
 
-use ordered_float::NotNan;
+pub use ordered_float::NotNan;
 use thiserror::Error;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoxTokenType<'a> {
     // Single-character tokens.
     LeftParen,
@@ -79,7 +79,7 @@ fn try_str_to_keyword(input: &str) -> Option<LoxTokenType> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoxToken<'a> {
     pub token_type: LoxTokenType<'a>,
     pub lexeme: &'a str,
