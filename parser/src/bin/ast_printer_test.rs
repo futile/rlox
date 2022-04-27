@@ -24,5 +24,5 @@ pub fn main() {
         )))),
     ));
 
-    println!("{}", ast_display(expr));
+    println!("{}", ast_display(&expr));
 }

@@ -1,6 +1,6 @@
 use lexer::LoxToken;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoxExpr<'a> {
     Binary(BinaryExpr<'a>),
     Unary(UnaryExpr<'a>),
@@ -19,7 +19,7 @@ impl<'a> LoxExpr<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BinaryExpr<'a> {
     pub left: Box<LoxExpr<'a>>,
     pub operator: LoxToken<'a>,
@@ -44,7 +44,7 @@ impl<'a> BinaryExpr<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnaryExpr<'a> {
     pub operator: LoxToken<'a>,
     pub right: Box<LoxExpr<'a>>,
@@ -63,7 +63,7 @@ impl<'a> UnaryExpr<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupingExpr<'a> {
     pub inner: Box<LoxExpr<'a>>,
 }
@@ -80,7 +80,7 @@ impl<'a> GroupingExpr<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiteralExpr<'a> {
     pub literal: LoxToken<'a>,
 }

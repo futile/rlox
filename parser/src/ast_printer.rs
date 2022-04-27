@@ -2,12 +2,12 @@ use std::fmt::{Display, Formatter};
 
 use crate::expr::{BinaryExpr, ExprVisitor, GroupingExpr, LiteralExpr, LoxExpr, UnaryExpr};
 
-pub fn ast_display(expr: LoxExpr<'_>) -> impl Display + '_ {
+pub fn ast_display<'a>(expr: &'a LoxExpr<'a>) -> impl Display + 'a {
     AstDisplay { expr }
 }
 
 struct AstDisplay<'a> {
-    expr: LoxExpr<'a>,
+    expr: &'a LoxExpr<'a>,
 }
 
 impl<'a> Display for AstDisplay<'a> {

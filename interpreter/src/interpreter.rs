@@ -6,6 +6,7 @@ use std::{
 
 use anyhow::{anyhow, Context};
 use lexer::LoxLexer;
+use parser::{ast_printer::ast_display, LoxParser};
 
 #[derive(Debug)]
 pub struct LoxInterpreter {}
@@ -17,10 +18,14 @@ impl LoxInterpreter {
 
     pub fn run(&mut self, source: &str) -> anyhow::Result<()> {
         let lexer = LoxLexer::new(source);
-
         let tokens = lexer.lex_into_tokens().context("lexing failed")?;
 
-        println!("lexed tokens: {tokens:?}");
+        // println!("lexed tokens: {tokens:#?}");
+
+        let parser = LoxParser::new(tokens.into_iter());
+        let expr = parser.parse().context("parsing failed")?;
+
+        println!("parsed expr: {}", ast_display(&expr));
 
         Ok(())
     }

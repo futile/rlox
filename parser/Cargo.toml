@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 lexer = { version = "0.1.0", path = "../lexer" }
+thiserror = "1.0.30"
