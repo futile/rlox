@@ -199,11 +199,10 @@ impl<'a> LoxLexer<'a> {
     fn lex_number(&mut self) -> Result<LoxToken<'a>, LexerError> {
         let mut dot_seen = false;
         loop {
-            match self.advance_if_n(|mut chars| {
-                matches!(
-                    (chars.next(), chars.next()),
-                    (Some('0'..='9'), _) | (Some('.'), Some('0'..='9'))
-                )
+            match self.advance_if_n(|mut chars| match (chars.next(), chars.next()) {
+                (Some('0'..='9'), _) => true,
+                (Some('.'), Some('0'..='9')) if !dot_seen => true,
+                _ => false,
             }) {
                 c @ (None | Some('.')) => {
                     if matches!(c, Some('.')) && !dot_seen {
@@ -614,7 +613,7 @@ mod tests {
     #[test]
     fn lex_number_and_dots() {
         assert_eq!(
-            &LoxLexer::new(".123.").lex_into_tokens().unwrap(),
+            &LoxLexer::new(".123.456.789.").lex_into_tokens().unwrap(),
             &[
                 LoxToken {
                     token_type: LoxTokenType::Dot,
@@ -622,8 +621,18 @@ mod tests {
                     line: 1
                 },
                 LoxToken {
-                    token_type: LoxTokenType::Number(NotNan::new(123f64).unwrap()),
-                    lexeme: "123",
+                    token_type: LoxTokenType::Number(NotNan::new(123.456f64).unwrap()),
+                    lexeme: "123.456",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::Dot,
+                    lexeme: ".",
+                    line: 1
+                },
+                LoxToken {
+                    token_type: LoxTokenType::Number(NotNan::new(789f64).unwrap()),
+                    lexeme: "789",
                     line: 1
                 },
                 LoxToken {
