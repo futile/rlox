@@ -100,9 +100,10 @@ impl<'a> LoxToken<'a> {
 pub enum LexerError {
     #[error("unterminated string (starting in line {starting_line})")]
     UnterminatedString { starting_line: usize },
-    #[error("unparseable number (line {line}): {source}")]
+    #[error("unparseable number (line {line}, lexeme: {lexeme:?}): {source:?}")]
     InvalidNumber {
         line: usize,
+        lexeme: String,
         source: std::num::ParseFloatError,
     },
     #[error("unexpected character (line {line}): {character:?}")]
@@ -213,6 +214,7 @@ impl<'a> LoxLexer<'a> {
                     let number = self.current_lexeme().parse::<f64>().map_err(|e| {
                         LexerError::InvalidNumber {
                             line: self.current_line,
+                            lexeme: self.current_lexeme().to_string(),
                             source: e,
                         }
                     })?;
