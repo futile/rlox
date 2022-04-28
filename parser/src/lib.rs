@@ -1,6 +1,6 @@
 #![feature(assert_matches)]
 
-use std::iter::Peekable;
+use std::iter::{Fuse, Peekable};
 
 use expr::{BinaryExpr, GroupingExpr, LiteralExpr, LoxExpr, UnaryExpr};
 use lexer::{LexerError, LoxLexer, LoxToken, LoxTokenType};
@@ -14,7 +14,7 @@ pub struct LoxParser<'a, I>
 where
     I: Iterator<Item = LoxToken<'a>>,
 {
-    tokens: Peekable<I>,
+    tokens: Peekable<Fuse<I>>,
 }
 
 impl<'a, I> LoxParser<'a, I>
@@ -23,7 +23,7 @@ where
 {
     pub fn new(tokens: I) -> LoxParser<'a, I> {
         LoxParser {
-            tokens: tokens.peekable(),
+            tokens: tokens.fuse().peekable(),
         }
     }
 
