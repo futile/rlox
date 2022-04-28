@@ -137,7 +137,15 @@ where
             return Ok(GroupingExpr::new(inner).into_expr());
         }
 
-        todo!()
+        let next = self
+            .tokens
+            .peek()
+            .expect("somehow moved past end of tokens");
+
+        Err(ParserError::MissingExpression {
+            line: next.line,
+            lexeme: next.lexeme.to_string(),
+        })
     }
 
     // unused for now in the book
@@ -180,15 +188,19 @@ pub fn parser_from_str(
 pub enum ParserError {
     #[error("Expected ')' after expression, opening '(' in line {starting_line}")]
     MissingRightParen { starting_line: usize },
+    #[error("Expected expression (line {line}, lexeme {lexeme:?})")]
+    MissingExpression { line: usize, lexeme: String },
 }
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
+
     use lexer::{LoxToken, LoxTokenType, NotNan};
 
     use crate::{
         expr::{BinaryExpr, GroupingExpr, LiteralExpr, LoxExpr, UnaryExpr},
-        parser_from_str, LoxParser,
+        parser_from_str, LoxParser, ParserError,
     };
 
     #[test]
@@ -225,5 +237,17 @@ mod tests {
         ));
 
         assert_eq!(res, expected_expr);
+    }
+
+    #[test]
+    fn missing_rparen() {
+        let res = parser_from_str("(1").unwrap().parse_expression();
+        assert_matches!(res, Err(ParserError::MissingRightParen { .. }));
+    }
+
+    #[test]
+    fn missing_expression() {
+        let res = parser_from_str("").unwrap().parse_expression();
+        assert_matches!(res, Err(ParserError::MissingExpression { .. }));
     }
 }
