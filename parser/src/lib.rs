@@ -140,7 +140,7 @@ where
     }
 }
 
-pub fn parse_str(
+pub fn parser_from_str(
     input: &str,
 ) -> Result<LoxParser<'_, impl Iterator<Item = LoxToken<'_>>>, LexerError> {
     Ok(LoxParser::new(
@@ -157,19 +157,19 @@ mod tests {
 
     use crate::{
         expr::{BinaryExpr, GroupingExpr, LiteralExpr, LoxExpr, UnaryExpr},
-        parse_str, LoxParser,
+        parser_from_str, LoxParser,
     };
 
     #[test]
     fn it_works() {
         let t: [LoxToken<'static>; 0] = [];
         let _ = LoxParser::new(t.into_iter());
-        let _ = parse_str("").unwrap();
+        let _ = parser_from_str("").unwrap();
     }
 
     #[test]
     fn lex_simple_expr() {
-        let res = parse_str("-123 * (45.67)")
+        let res = parser_from_str("-123 * (45.67)")
             .unwrap()
             .parse_expression()
             .unwrap();
