@@ -124,15 +124,16 @@ where
             return Ok(LiteralExpr::new(t).into_expr());
         }
 
-        if self
+        if let Some(lparen) = self
             .tokens
             .next_if(|t| t.token_type == LoxTokenType::LeftParen)
-            .is_some()
         {
             let inner = self.parse_expression()?;
             self.tokens
                 .next_if(|t| t.token_type == LoxTokenType::RightParen)
-                .expect("Expected ')' after expression");
+                .ok_or(ParserError::MissingRightParen {
+                    starting_line: lparen.line,
+                })?;
             return Ok(GroupingExpr::new(inner).into_expr());
         }
 
@@ -149,7 +150,10 @@ pub fn parser_from_str(
 }
 
 #[derive(Error, Debug)]
-pub enum ParserError {}
+pub enum ParserError {
+    #[error("Expected ')' after expression, opening '(' in line {starting_line}")]
+    MissingRightParen { starting_line: usize },
+}
 
 #[cfg(test)]
 mod tests {
