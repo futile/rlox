@@ -139,6 +139,33 @@ where
 
         todo!()
     }
+
+    // unused for now in the book
+    #[allow(unused)]
+    fn synchronize(&mut self) {
+        while let Some(t) = self.tokens.next() {
+            if t.token_type == LoxTokenType::Semicolon {
+                return;
+            }
+
+            let peek_type = match self.tokens.peek() {
+                Some(t) => &t.token_type,
+                None => return,
+            };
+
+            match peek_type {
+                LoxTokenType::Class
+                | LoxTokenType::Fun
+                | LoxTokenType::Var
+                | LoxTokenType::For
+                | LoxTokenType::If
+                | LoxTokenType::While
+                | LoxTokenType::Print
+                | LoxTokenType::Return => return,
+                _ => (),
+            }
+        }
+    }
 }
 
 pub fn parser_from_str(
