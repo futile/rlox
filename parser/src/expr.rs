@@ -2,6 +2,7 @@ use lexer::LoxToken;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoxExpr<'a> {
+    Ternary(TernaryExpr<'a>),
     Binary(BinaryExpr<'a>),
     Unary(UnaryExpr<'a>),
     Grouping(GroupingExpr<'a>),
@@ -11,11 +12,43 @@ pub enum LoxExpr<'a> {
 impl<'a> LoxExpr<'a> {
     pub fn accept<R>(&self, visitor: &mut dyn ExprVisitor<Output = R>) -> R {
         match self {
+            LoxExpr::Ternary(expr) => visitor.visit_ternary_expr(expr),
             LoxExpr::Binary(expr) => visitor.visit_binary_expr(expr),
             LoxExpr::Unary(expr) => visitor.visit_unary_expr(expr),
             LoxExpr::Grouping(expr) => visitor.visit_grouping_expr(expr),
             LoxExpr::Literal(expr) => visitor.visit_literal_expr(expr),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TernaryExpr<'a> {
+    pub left: Box<LoxExpr<'a>>,
+    pub first_operator: LoxToken<'a>,
+    pub inner: Box<LoxExpr<'a>>,
+    pub second_operator: LoxToken<'a>,
+    pub right: Box<LoxExpr<'a>>,
+}
+
+impl<'a> TernaryExpr<'a> {
+    pub fn new(
+        left: impl Into<Box<LoxExpr<'a>>>,
+        first_operator: LoxToken<'a>,
+        inner: impl Into<Box<LoxExpr<'a>>>,
+        second_operator: LoxToken<'a>,
+        right: impl Into<Box<LoxExpr<'a>>>,
+    ) -> TernaryExpr<'a> {
+        TernaryExpr {
+            left: left.into(),
+            first_operator,
+            inner: inner.into(),
+            second_operator,
+            right: right.into(),
+        }
+    }
+
+    pub fn into_expr(self) -> LoxExpr<'a> {
+        LoxExpr::Ternary(self)
     }
 }
 
@@ -98,6 +131,7 @@ impl<'a> LiteralExpr<'a> {
 pub trait ExprVisitor {
     type Output;
 
+    fn visit_ternary_expr(&mut self, expr: &TernaryExpr<'_>) -> Self::Output;
     fn visit_binary_expr(&mut self, expr: &BinaryExpr<'_>) -> Self::Output;
     fn visit_unary_expr(&mut self, expr: &UnaryExpr<'_>) -> Self::Output;
     fn visit_grouping_expr(&mut self, expr: &GroupingExpr<'_>) -> Self::Output;

@@ -2,7 +2,7 @@
 
 use std::iter::{Fuse, Peekable};
 
-use expr::{BinaryExpr, GroupingExpr, LiteralExpr, LoxExpr, UnaryExpr};
+use expr::{BinaryExpr, GroupingExpr, LiteralExpr, LoxExpr, TernaryExpr, UnaryExpr};
 use lexer::{LexerError, LoxLexer, LoxToken, LoxTokenType};
 use thiserror::Error;
 
@@ -36,11 +36,37 @@ where
     }
 
     fn parse_comma(&mut self) -> Result<LoxExpr<'a>, ParserError> {
-        let mut expr = self.parse_equality()?;
+        let mut expr = self.parse_ternary()?;
 
         while let Some(op) = self.tokens.next_if(|t| t.token_type == LoxTokenType::Comma) {
-            let right = self.parse_equality()?;
+            let right = self.parse_ternary()?;
             expr = BinaryExpr::new(expr, op, right).into_expr();
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_ternary(&mut self) -> Result<LoxExpr<'a>, ParserError> {
+        let mut expr = self.parse_equality()?;
+
+        while let Some(question_op) = self
+            .tokens
+            .next_if(|t| t.token_type == LoxTokenType::Questionmark)
+        {
+            // inner expr (between '?' and ':' is parsed as if grouped in parentheses, like
+            // in C)
+            let inner_expr = self.parse_expression()?;
+
+            let colon_op = self
+                .tokens
+                .next_if(|t| t.token_type == LoxTokenType::Colon)
+                .ok_or(ParserError::MissingTernaryColon {
+                    starting_line: question_op.line,
+                })?;
+
+            // right-associativity, like in C
+            let right = self.parse_ternary()?;
+            expr = TernaryExpr::new(expr, question_op, inner_expr, colon_op, right).into_expr();
         }
 
         Ok(expr)
@@ -201,6 +227,8 @@ pub enum ParserError {
     MissingRightParen { starting_line: usize },
     #[error("Expected expression (line {line}, lexeme {lexeme:?})")]
     MissingExpression { line: usize, lexeme: String },
+    #[error("Expected ':' after expression, opening '?' in line {starting_line}")]
+    MissingTernaryColon { starting_line: usize },
 }
 
 #[cfg(test)]
@@ -210,7 +238,7 @@ mod tests {
     use lexer::{LoxToken, LoxTokenType, NotNan};
 
     use crate::{
-        expr::{BinaryExpr, GroupingExpr, LiteralExpr, LoxExpr, UnaryExpr},
+        expr::{BinaryExpr, GroupingExpr, LiteralExpr, LoxExpr, TernaryExpr, UnaryExpr},
         parser_from_str, LoxParser, ParserError,
     };
 
@@ -280,6 +308,67 @@ mod tests {
                 "3",
                 1,
             ))
+            .into_expr(),
+        )
+        .into_expr();
+
+        assert_eq!(res, expected_expr);
+    }
+
+    #[test]
+    fn parse_ternary_expr() {
+        let res = parser_from_str("1 ? 2, 2.5 : 3 ? 4 : 5")
+            .unwrap()
+            .parse_expression()
+            .unwrap();
+
+        let expected_expr = TernaryExpr::new(
+            LiteralExpr::new(LoxToken::new(
+                LoxTokenType::Number(NotNan::new(1.0).unwrap()),
+                "1",
+                1,
+            ))
+            .into_expr(),
+            LoxToken::new(LoxTokenType::Questionmark, "?", 1),
+            BinaryExpr::new(
+                LiteralExpr::new(LoxToken::new(
+                    LoxTokenType::Number(NotNan::new(2.0).unwrap()),
+                    "2",
+                    1,
+                ))
+                .into_expr(),
+                LoxToken::new(LoxTokenType::Comma, ",", 1),
+                LiteralExpr::new(LoxToken::new(
+                    LoxTokenType::Number(NotNan::new(2.5).unwrap()),
+                    "2.5",
+                    1,
+                ))
+                .into_expr(),
+            )
+            .into_expr(),
+            LoxToken::new(LoxTokenType::Colon, ":", 1),
+            TernaryExpr::new(
+                LiteralExpr::new(LoxToken::new(
+                    LoxTokenType::Number(NotNan::new(3.0).unwrap()),
+                    "3",
+                    1,
+                ))
+                .into_expr(),
+                LoxToken::new(LoxTokenType::Questionmark, "?", 1),
+                LiteralExpr::new(LoxToken::new(
+                    LoxTokenType::Number(NotNan::new(4.0).unwrap()),
+                    "4",
+                    1,
+                ))
+                .into_expr(),
+                LoxToken::new(LoxTokenType::Colon, ":", 1),
+                LiteralExpr::new(LoxToken::new(
+                    LoxTokenType::Number(NotNan::new(5.0).unwrap()),
+                    "5",
+                    1,
+                ))
+                .into_expr(),
+            )
             .into_expr(),
         )
         .into_expr();

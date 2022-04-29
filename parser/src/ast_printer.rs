@@ -23,6 +23,20 @@ struct AstPrinter<'b, 'c> {
 impl<'b, 'c> ExprVisitor for AstPrinter<'b, 'c> {
     type Output = std::fmt::Result;
 
+    fn visit_ternary_expr(&mut self, expr: &crate::expr::TernaryExpr<'_>) -> Self::Output {
+        write!(
+            self.writer,
+            "({}{} ",
+            expr.first_operator.lexeme, expr.second_operator.lexeme
+        )?;
+        expr.left.accept(self)?;
+        write!(self.writer, " ")?;
+        expr.inner.accept(self)?;
+        write!(self.writer, " ")?;
+        expr.right.accept(self)?;
+        write!(self.writer, ")")
+    }
+
     fn visit_binary_expr(&mut self, expr: &BinaryExpr<'_>) -> Self::Output {
         write!(self.writer, "({} ", expr.operator.lexeme)?;
         expr.left.accept(self)?;

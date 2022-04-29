@@ -17,6 +17,8 @@ pub enum LoxTokenType<'a> {
     Semicolon,
     Slash,
     Star,
+    Questionmark, // for ?:
+    Colon,        // for ?:
 
     // One or two character tokens.
     Bang,
@@ -339,6 +341,8 @@ impl<'a> LoxLexer<'a> {
                 '+' => break self.build_token(LoxTokenType::Plus),
                 ';' => break self.build_token(LoxTokenType::Semicolon),
                 '*' => break self.build_token(LoxTokenType::Star),
+                '?' => break self.build_token(LoxTokenType::Questionmark),
+                ':' => break self.build_token(LoxTokenType::Colon),
                 '!' => {
                     break self
                         .lex_op_with_maybe_equals(LoxTokenType::Bang, LoxTokenType::BangEqual)
@@ -447,11 +451,11 @@ mod tests {
     #[test]
     fn lex_single_chars() {
         assert_eq!(
-            LoxLexer::new("(){},.-+;*=!<>/")
+            LoxLexer::new("(){},.-+;*=!<>/?:")
                 .lex_into_tokens()
                 .unwrap()
                 .len(),
-            16
+            18
         );
     }
 
