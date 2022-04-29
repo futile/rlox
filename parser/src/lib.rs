@@ -62,6 +62,10 @@ where
                 .next_if(|t| t.token_type == LoxTokenType::Colon)
                 .ok_or(ParserError::MissingTernaryColon {
                     starting_line: question_op.line,
+                    other: self
+                        .tokens
+                        .peek()
+                        .map_or_else(String::new, |t| t.lexeme.to_string()),
                 })?;
 
             // right-associativity, like in C
@@ -170,6 +174,10 @@ where
                 .next_if(|t| t.token_type == LoxTokenType::RightParen)
                 .ok_or(ParserError::MissingRightParen {
                     starting_line: lparen.line,
+                    other: self
+                        .tokens
+                        .peek()
+                        .map_or_else(String::new, |t| t.lexeme.to_string()),
                 })?;
             return Ok(GroupingExpr::new(inner).into_expr());
         }
@@ -223,12 +231,16 @@ pub fn parser_from_str(
 
 #[derive(Error, Debug)]
 pub enum ParserError {
-    #[error("Expected ')' after expression, opening '(' in line {starting_line}")]
-    MissingRightParen { starting_line: usize },
+    #[error(
+        "Expected ')' after expression, opening '(' in line {starting_line}, but got {other:?}"
+    )]
+    MissingRightParen { starting_line: usize, other: String },
     #[error("Expected expression (line {line}, lexeme {lexeme:?})")]
     MissingExpression { line: usize, lexeme: String },
-    #[error("Expected ':' after expression, opening '?' in line {starting_line}")]
-    MissingTernaryColon { starting_line: usize },
+    #[error(
+        "Expected ':' after expression, opening '?' in line {starting_line}, but got {other:?}"
+    )]
+    MissingTernaryColon { starting_line: usize, other: String },
 }
 
 #[cfg(test)]
