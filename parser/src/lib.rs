@@ -9,6 +9,22 @@ use thiserror::Error;
 pub mod ast_printer;
 pub mod expr;
 
+#[derive(Error, Debug)]
+pub enum ParserError {
+    #[error(
+        "Expected ')' after expression, opening '(' in line {starting_line}, but got {other:?}"
+    )]
+    MissingRightParen { starting_line: usize, other: String },
+    #[error("Expected expression (line {line}), but got: {lexeme:?}")]
+    MissingExpression { line: usize, lexeme: String },
+    #[error(
+        "Expected ':' after expression, opening '?' in line {starting_line}, but got {other:?}"
+    )]
+    MissingTernaryColon { starting_line: usize, other: String },
+    #[error("Missing left hand operand for operator '{op}', line {line}")]
+    MissingLeftHandOp { line: usize, op: String },
+}
+
 #[derive(Debug)]
 pub struct LoxParser<'a, I>
 where
@@ -16,6 +32,8 @@ where
 {
     tokens: Peekable<Fuse<I>>,
 }
+
+type ParserResult<'a> = Result<LoxExpr<'a>, ParserError>;
 
 impl<'a, I> LoxParser<'a, I>
 where
@@ -31,22 +49,61 @@ where
         self.parse_expression()
     }
 
-    fn parse_expression(&mut self) -> Result<LoxExpr<'a>, ParserError> {
+    fn parse_expression(&mut self) -> ParserResult<'a> {
         self.parse_comma()
     }
 
-    fn parse_comma(&mut self) -> Result<LoxExpr<'a>, ParserError> {
-        let mut expr = self.parse_ternary()?;
+    fn check_missing_left_hand_op(
+        &mut self,
+        parsed: ParserResult<'a>,
+        err_check: impl FnOnce(&LoxToken<'a>) -> bool,
+        err_recovery: impl FnOnce(&mut Self),
+    ) -> ParserResult<'a> {
+        let err = match parsed {
+            expr @ Ok(_) => return expr,
+            Err(e) => e,
+        };
 
-        while let Some(op) = self.tokens.next_if(|t| t.token_type == LoxTokenType::Comma) {
-            let right = self.parse_ternary()?;
+        if let Some(op) = self.tokens.next_if(err_check) {
+            // try to recover by parsing the right hand side as well, errors not relevant
+            // for now (only reporting a single error)
+            // TODO: maybe also report this error somehow later on
+            err_recovery(self);
+            Err(ParserError::MissingLeftHandOp {
+                line: op.line,
+                op: op.lexeme.to_string(),
+            })
+        } else {
+            Err(err)
+        }
+    }
+
+    fn parse_binary(
+        &mut self,
+        mut lhs_parse_fn: impl FnMut(&mut Self) -> ParserResult<'a>,
+        mut rhs_parse_fn: impl FnMut(&mut Self) -> ParserResult<'a>,
+        mut token_fn: impl FnMut(&LoxToken<'a>) -> bool,
+    ) -> ParserResult<'a> {
+        let res = lhs_parse_fn(self);
+        let mut expr = self.check_missing_left_hand_op(res, &mut token_fn, |this| {
+            rhs_parse_fn(this).ok();
+        })?;
+
+        while let Some(op) = self.tokens.next_if(&mut token_fn) {
+            let right = rhs_parse_fn(self)?;
             expr = BinaryExpr::new(expr, op, right).into_expr();
         }
 
         Ok(expr)
     }
 
-    fn parse_ternary(&mut self) -> Result<LoxExpr<'a>, ParserError> {
+    fn parse_comma(&mut self) -> ParserResult<'a> {
+        self.parse_binary(Self::parse_ternary, Self::parse_ternary, |t| {
+            t.token_type == LoxTokenType::Comma
+        })
+    }
+
+    fn parse_ternary(&mut self) -> ParserResult<'a> {
         let mut expr = self.parse_equality()?;
 
         while let Some(question_op) = self
@@ -76,26 +133,17 @@ where
         Ok(expr)
     }
 
-    fn parse_equality(&mut self) -> Result<LoxExpr<'a>, ParserError> {
-        let mut expr = self.parse_comparison()?;
-
-        while let Some(op) = self.tokens.next_if(|t| {
+    fn parse_equality(&mut self) -> ParserResult<'a> {
+        self.parse_binary(Self::parse_comparison, Self::parse_comparison, |t| {
             matches!(
                 t.token_type,
                 LoxTokenType::BangEqual | LoxTokenType::EqualEqual
             )
-        }) {
-            let right = self.parse_comparison()?;
-            expr = BinaryExpr::new(expr, op, right).into_expr();
-        }
-
-        Ok(expr)
+        })
     }
 
-    fn parse_comparison(&mut self) -> Result<LoxExpr<'a>, ParserError> {
-        let mut expr = self.parse_term()?;
-
-        while let Some(op) = self.tokens.next_if(|t| {
+    fn parse_comparison(&mut self) -> ParserResult<'a> {
+        self.parse_binary(Self::parse_term, Self::parse_term, |t| {
             matches!(
                 t.token_type,
                 LoxTokenType::Greater
@@ -103,43 +151,22 @@ where
                     | LoxTokenType::Less
                     | LoxTokenType::LessEqual
             )
-        }) {
-            let right = self.parse_term()?;
-            expr = BinaryExpr::new(expr, op, right).into_expr();
-        }
-
-        Ok(expr)
+        })
     }
 
-    fn parse_term(&mut self) -> Result<LoxExpr<'a>, ParserError> {
-        let mut expr = self.parse_factor()?;
-
-        while let Some(op) = self
-            .tokens
-            .next_if(|t| matches!(t.token_type, LoxTokenType::Minus | LoxTokenType::Plus))
-        {
-            let right = self.parse_factor()?;
-            expr = BinaryExpr::new(expr, op, right).into_expr();
-        }
-
-        Ok(expr)
+    fn parse_term(&mut self) -> ParserResult<'a> {
+        self.parse_binary(Self::parse_factor, Self::parse_factor, |t| {
+            matches!(t.token_type, LoxTokenType::Minus | LoxTokenType::Plus)
+        })
     }
 
-    fn parse_factor(&mut self) -> Result<LoxExpr<'a>, ParserError> {
-        let mut expr = self.parse_unary()?;
-
-        while let Some(op) = self
-            .tokens
-            .next_if(|t| matches!(t.token_type, LoxTokenType::Slash | LoxTokenType::Star))
-        {
-            let right = self.parse_unary()?;
-            expr = BinaryExpr::new(expr, op, right).into_expr();
-        }
-
-        Ok(expr)
+    fn parse_factor(&mut self) -> ParserResult<'a> {
+        self.parse_binary(Self::parse_unary, Self::parse_unary, |t| {
+            matches!(t.token_type, LoxTokenType::Slash | LoxTokenType::Star)
+        })
     }
 
-    fn parse_unary(&mut self) -> Result<LoxExpr<'a>, ParserError> {
+    fn parse_unary(&mut self) -> ParserResult<'a> {
         if let Some(op) = self
             .tokens
             .next_if(|t| matches!(t.token_type, LoxTokenType::Bang | LoxTokenType::Minus))
@@ -151,7 +178,7 @@ where
         self.parse_primary()
     }
 
-    fn parse_primary(&mut self) -> Result<LoxExpr<'a>, ParserError> {
+    fn parse_primary(&mut self) -> ParserResult<'a> {
         if let Some(t) = self.tokens.next_if(|t| {
             matches!(
                 t.token_type,
@@ -227,20 +254,6 @@ pub fn parser_from_str(
     Ok(LoxParser::new(
         LoxLexer::new(input).lex_into_tokens()?.into_iter(),
     ))
-}
-
-#[derive(Error, Debug)]
-pub enum ParserError {
-    #[error(
-        "Expected ')' after expression, opening '(' in line {starting_line}, but got {other:?}"
-    )]
-    MissingRightParen { starting_line: usize, other: String },
-    #[error("Expected expression (line {line}, lexeme {lexeme:?})")]
-    MissingExpression { line: usize, lexeme: String },
-    #[error(
-        "Expected ':' after expression, opening '?' in line {starting_line}, but got {other:?}"
-    )]
-    MissingTernaryColon { starting_line: usize, other: String },
 }
 
 #[cfg(test)]
