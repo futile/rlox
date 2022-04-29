@@ -32,7 +32,18 @@ where
     }
 
     fn parse_expression(&mut self) -> Result<LoxExpr<'a>, ParserError> {
-        self.parse_equality()
+        self.parse_comma()
+    }
+
+    fn parse_comma(&mut self) -> Result<LoxExpr<'a>, ParserError> {
+        let mut expr = self.parse_equality()?;
+
+        while let Some(op) = self.tokens.next_if(|t| t.token_type == LoxTokenType::Comma) {
+            let right = self.parse_equality()?;
+            expr = BinaryExpr::new(expr, op, right).into_expr();
+        }
+
+        Ok(expr)
     }
 
     fn parse_equality(&mut self) -> Result<LoxExpr<'a>, ParserError> {
@@ -211,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn lex_simple_expr() {
+    fn parse_simple_expr() {
         let res = parser_from_str("-123 * (45.67)")
             .unwrap()
             .parse_expression()
@@ -235,6 +246,43 @@ mod tests {
                 ),
             )))),
         ));
+
+        assert_eq!(res, expected_expr);
+    }
+
+    #[test]
+    fn parse_comma_expr() {
+        let res = parser_from_str("1,2,3")
+            .unwrap()
+            .parse_expression()
+            .unwrap();
+
+        let expected_expr = BinaryExpr::new(
+            BinaryExpr::new(
+                LiteralExpr::new(LoxToken::new(
+                    LoxTokenType::Number(NotNan::new(1.0).unwrap()),
+                    "1",
+                    1,
+                ))
+                .into_expr(),
+                LoxToken::new(LoxTokenType::Comma, ",", 1),
+                LiteralExpr::new(LoxToken::new(
+                    LoxTokenType::Number(NotNan::new(2.0).unwrap()),
+                    "2",
+                    1,
+                ))
+                .into_expr(),
+            )
+            .into_expr(),
+            LoxToken::new(LoxTokenType::Comma, ",", 1),
+            LiteralExpr::new(LoxToken::new(
+                LoxTokenType::Number(NotNan::new(3.0).unwrap()),
+                "3",
+                1,
+            ))
+            .into_expr(),
+        )
+        .into_expr();
 
         assert_eq!(res, expected_expr);
     }
