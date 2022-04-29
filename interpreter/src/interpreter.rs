@@ -6,7 +6,9 @@ use std::{
 
 use anyhow::{anyhow, Context};
 use lexer::LoxLexer;
-use parser::{ast_printer::ast_display, LoxParser};
+use parser::LoxParser;
+
+use crate::expr_evaluator::ExprEvaluator;
 
 #[derive(Debug)]
 pub struct LoxInterpreter {}
@@ -25,7 +27,12 @@ impl LoxInterpreter {
         let parser = LoxParser::new(tokens.into_iter());
         let expr = parser.parse().context("parsing failed")?;
 
-        println!("parsed expr: {}", ast_display(&expr));
+        // println!("parsed expr: {}", parser::ast_printer::ast_display(&expr));
+
+        let result = expr
+            .accept(&mut ExprEvaluator)
+            .context("evaluation failed")?;
+        println!("{result:?}");
 
         Ok(())
     }

@@ -1,9 +1,14 @@
+#![feature(assert_matches)]
+#![feature(let_else)]
+
 use std::path::PathBuf;
 
 use clap::Parser;
 use interpreter::LoxInterpreter;
 
+pub mod expr_evaluator;
 mod interpreter;
+pub mod lox_value;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
