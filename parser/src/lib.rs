@@ -412,4 +412,16 @@ mod tests {
         let res = parser_from_str("").unwrap().parse_expression();
         assert_matches!(res, Err(ParserError::MissingExpression { .. }));
     }
+
+    #[test]
+    fn missing_binary_lhs() {
+        let res = parser_from_str("+ 2").unwrap().parse_expression();
+        assert_matches!(res, Err(ParserError::MissingLeftHandOp { .. }));
+    }
+
+    #[test]
+    fn unary_minus_works() {
+        let res = parser_from_str("- 2").unwrap().parse_expression();
+        assert_matches!(res, Ok(..));
+    }
 }
