@@ -48,7 +48,11 @@ impl LoxInterpreter {
 
             match io::stdin().read_line(&mut line) {
                 Ok(0) => return Ok(()), // EOF
-                Ok(_) => self.run(line.trim_end_matches('\n'))?,
+                Ok(_) => {
+                    if let Err(e) = self.run(line.trim_end_matches('\n')) {
+                        eprintln!("{e:?}");
+                    }
+                }
                 Err(e) => return Err(anyhow!(e).context("error while reading from stdin")),
             }
 
