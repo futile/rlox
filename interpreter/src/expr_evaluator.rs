@@ -1,11 +1,18 @@
+use lexer::LoxTokenType;
 use parser::expr::ExprVisitor;
 
-use crate::lox_value::{LoxValue, TokenToValueConversionError};
+use crate::lox_value::{
+    BoolInversionError, LoxValue, NumberNegationError, TokenToValueConversionError,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExprEvaluationError {
     #[error("Could not evaluate literal expression: {source}")]
     LiteralExprEvaluationFailed { source: TokenToValueConversionError },
+    #[error(transparent)]
+    NegationFailed(NumberNegationError),
+    #[error(transparent)]
+    InversionFailed(BoolInversionError),
 }
 
 pub struct ExprEvaluator;
@@ -17,12 +24,26 @@ impl ExprVisitor for ExprEvaluator {
         todo!()
     }
 
-    fn visit_binary_expr(&mut self, _expr: &parser::expr::BinaryExpr<'_>) -> Self::Output {
+    fn visit_binary_expr(&mut self, expr: &parser::expr::BinaryExpr<'_>) -> Self::Output {
+        let _left = expr.left.accept(self)?;
+        let _right = expr.right.accept(self)?;
+
         todo!()
     }
 
-    fn visit_unary_expr(&mut self, _expr: &parser::expr::UnaryExpr<'_>) -> Self::Output {
-        todo!()
+    fn visit_unary_expr(&mut self, expr: &parser::expr::UnaryExpr<'_>) -> Self::Output {
+        let value = expr.right.accept(self)?;
+
+        match expr.operator.token_type {
+            LoxTokenType::Bang => value
+                .truthy()
+                .bool_inverted()
+                .map_err(ExprEvaluationError::InversionFailed),
+            LoxTokenType::Minus => value
+                .number_negated()
+                .map_err(ExprEvaluationError::NegationFailed),
+            _ => panic!("unexpected operator in unary expression: {expr:?}"),
+        }
     }
 
     fn visit_grouping_expr(&mut self, expr: &parser::expr::GroupingExpr<'_>) -> Self::Output {
@@ -75,6 +96,24 @@ mod tests {
     fn evaluate_literal_nil() {
         let res = evaluate_str("nil").unwrap();
         assert_matches!(res, LoxValue::Nil);
+    }
+
+    #[test]
+    fn evaluate_unary_bang() {
+        let res = evaluate_str("!true").unwrap();
+        let LoxValue::Bool(b) = res else { panic!("expected bool, but got: {res:?}") };
+        assert_eq!(b, false);
+
+        let res = evaluate_str("!nil").unwrap();
+        let LoxValue::Bool(b) = res else { panic!("expected bool, but got: {res:?}") };
+        assert_eq!(b, true);
+    }
+
+    #[test]
+    fn evaluate_unary_minus() {
+        let res = evaluate_str("-1").unwrap();
+        let LoxValue::Number(num) = res else { panic!("expected number, but got: {res:?}") };
+        assert_eq!(num, -1.0);
     }
 
     #[test]

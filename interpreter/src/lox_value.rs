@@ -1,11 +1,53 @@
 use lexer::{owned_token::OwnedLoxToken, LoxToken, LoxTokenType};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LoxValue {
     Nil,
     Bool(bool),
     Number(f64),
     String(String),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Could not negate value because its not a number: {value:?}")]
+pub struct NumberNegationError {
+    value: LoxValue,
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Could not invert value because its not a bool: {value:?}")]
+pub struct BoolInversionError {
+    value: LoxValue,
+}
+
+impl LoxValue {
+    pub fn number_negated(&self) -> Result<LoxValue, NumberNegationError> {
+        if let LoxValue::Number(ref n) = self {
+            Ok(LoxValue::Number(-n))
+        } else {
+            Err(NumberNegationError {
+                value: self.clone(),
+            })
+        }
+    }
+
+    pub fn truthy(&self) -> LoxValue {
+        match self {
+            LoxValue::Bool(..) => self.clone(),
+            LoxValue::Nil => LoxValue::Bool(false),
+            _ => LoxValue::Bool(true),
+        }
+    }
+
+    pub fn bool_inverted(&self) -> Result<LoxValue, BoolInversionError> {
+        if let LoxValue::Bool(b) = self {
+            Ok(LoxValue::Bool(!b))
+        } else {
+            Err(BoolInversionError {
+                value: self.clone(),
+            })
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
