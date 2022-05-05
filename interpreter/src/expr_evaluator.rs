@@ -43,6 +43,18 @@ impl ExprVisitor for ExprEvaluator {
             LoxTokenType::Slash => lhs
                 .try_div(&rhs)
                 .map_err(ExprEvaluationError::BinaryOpFailed),
+            LoxTokenType::Greater => lhs
+                .try_greater(&rhs)
+                .map_err(ExprEvaluationError::BinaryOpFailed),
+            LoxTokenType::GreaterEqual => lhs
+                .try_greater_equal(&rhs)
+                .map_err(ExprEvaluationError::BinaryOpFailed),
+            LoxTokenType::Less => lhs
+                .try_less(&rhs)
+                .map_err(ExprEvaluationError::BinaryOpFailed),
+            LoxTokenType::LessEqual => lhs
+                .try_less_equal(&rhs)
+                .map_err(ExprEvaluationError::BinaryOpFailed),
             ref tt => panic!("unexpected operator {tt:?} in binary expression: {expr:?}"),
         }
     }
@@ -93,6 +105,12 @@ mod tests {
         assert_eq!(n, expected_val);
     }
 
+    fn evaluate_expect_bool(input: &str, expected_val: bool) {
+        let res = evaluate_str(input).unwrap();
+        let LoxValue::Bool(b) = res else { panic!("expected bool, but got: {res:?}") };
+        assert_eq!(b, expected_val);
+    }
+
     #[test]
     fn evaluate_literal_number() {
         evaluate_expect_number("1", 1.0);
@@ -107,9 +125,7 @@ mod tests {
 
     #[test]
     fn evaluate_literal_bool() {
-        let res = evaluate_str("true").unwrap();
-        let LoxValue::Bool(b) = res else { panic!("expected bool, but got: {res:?}") };
-        assert_eq!(b, true);
+        evaluate_expect_bool("true", true);
     }
 
     #[test]
@@ -120,13 +136,8 @@ mod tests {
 
     #[test]
     fn evaluate_unary_bang() {
-        let res = evaluate_str("!true").unwrap();
-        let LoxValue::Bool(b) = res else { panic!("expected bool, but got: {res:?}") };
-        assert_eq!(b, false);
-
-        let res = evaluate_str("!nil").unwrap();
-        let LoxValue::Bool(b) = res else { panic!("expected bool, but got: {res:?}") };
-        assert_eq!(b, true);
+        evaluate_expect_bool("!true", false);
+        evaluate_expect_bool("!nil", true);
     }
 
     #[test]
@@ -140,6 +151,18 @@ mod tests {
         evaluate_expect_number("10 - 2", 8.0);
         evaluate_expect_number("10 * 2", 20.0);
         evaluate_expect_number("10 / 2", 5.0);
+
+        evaluate_expect_bool("10 > 2", true);
+        evaluate_expect_bool("10 > 10", false);
+        evaluate_expect_bool("10 >= 2", true);
+        evaluate_expect_bool("10 >= 10", true);
+        evaluate_expect_bool("10 >= 11", false);
+
+        evaluate_expect_bool("2 < 10", true);
+        evaluate_expect_bool("2 < 2", false);
+        evaluate_expect_bool("2 <= 2", true);
+        evaluate_expect_bool("2 <= 10", true);
+        evaluate_expect_bool("2 <= 1", false);
     }
 
     #[test]

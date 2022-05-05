@@ -1,5 +1,3 @@
-use std::ops::{Add, Div, Mul, Sub};
-
 use lexer::{owned_token::OwnedLoxToken, LoxToken, LoxTokenType};
 
 #[derive(Debug, Clone)]
@@ -68,34 +66,29 @@ impl LoxValue {
         }
     }
 
-    fn try_binary_op(
+    fn try_binary_op<F, T>(
         &self,
         rhs: &LoxValue,
-        op: impl FnOnce(f64, f64) -> f64,
+        // op: impl for<'a, 'b> FnOnce(&'a f64, &'b f64) -> T,
+        op: F,
         op_str: &'static str,
-    ) -> Result<LoxValue, BinaryOpError> {
-        let Some(ln) = self.number() else {
-            return Err(BinaryOpError {
+    ) -> Result<T, BinaryOpError>
+    where
+        for<'a, 'b> F: FnOnce(&'a f64, &'b f64) -> T,
+    {
+        match (self, rhs) {
+            (LoxValue::Number(ln), LoxValue::Number(rn)) => Ok(op(ln, rn)),
+            _ => Err(BinaryOpError {
                 op: op_str,
                 lhs: self.clone(),
                 rhs: rhs.clone(),
-            })
-        };
-
-        let Some(rn) = rhs.number() else {
-            return Err(BinaryOpError {
-                op: op_str,
-                lhs: self.clone(),
-                rhs: rhs.clone(),
-            })
-        };
-
-        Ok(LoxValue::Number(op(ln, rn)))
+            }),
+        }
     }
 
     pub fn try_add(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
-        if let v @ Ok(_) = self.try_binary_op(rhs, Add::add, "add") {
-            return v;
+        if let Ok(v) = self.try_binary_op(rhs, |l, r| l + r, "+") {
+            return Ok(LoxValue::Number(v));
         }
 
         match (self, rhs) {
@@ -103,7 +96,7 @@ impl LoxValue {
                 return Ok(LoxValue::String(format!("{lhs}{rhs}")))
             }
             _ => Err(BinaryOpError {
-                op: "add",
+                op: "+",
                 lhs: self.clone(),
                 rhs: rhs.clone(),
             }),
@@ -111,15 +104,38 @@ impl LoxValue {
     }
 
     pub fn try_sub(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
-        self.try_binary_op(rhs, Sub::sub, "sub")
+        self.try_binary_op(rhs, |l, r| l - r, "-")
+            .map(LoxValue::Number)
     }
 
     pub fn try_mul(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
-        self.try_binary_op(rhs, Mul::mul, "mul")
+        self.try_binary_op(rhs, |l, r| l * r, "*")
+            .map(LoxValue::Number)
     }
 
     pub fn try_div(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
-        self.try_binary_op(rhs, Div::div, "div")
+        self.try_binary_op(rhs, |l, r| l / r, "/")
+            .map(LoxValue::Number)
+    }
+
+    pub fn try_greater(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
+        self.try_binary_op(rhs, PartialOrd::gt, ">")
+            .map(LoxValue::Bool)
+    }
+
+    pub fn try_greater_equal(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
+        self.try_binary_op(rhs, PartialOrd::ge, ">=")
+            .map(LoxValue::Bool)
+    }
+
+    pub fn try_less(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
+        self.try_binary_op(rhs, PartialOrd::lt, "<")
+            .map(LoxValue::Bool)
+    }
+
+    pub fn try_less_equal(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
+        self.try_binary_op(rhs, PartialOrd::le, "<=")
+            .map(LoxValue::Bool)
     }
 }
 
