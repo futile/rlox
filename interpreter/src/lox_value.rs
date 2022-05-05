@@ -48,12 +48,16 @@ impl LoxValue {
         )
     }
 
-    pub fn truthy(&self) -> LoxValue {
+    pub fn truthy_val(&self) -> bool {
         match self {
-            LoxValue::Bool(..) => self.clone(),
-            LoxValue::Nil => LoxValue::Bool(false),
-            _ => LoxValue::Bool(true),
+            LoxValue::Bool(b) => *b,
+            LoxValue::Nil => false,
+            _ => true,
         }
+    }
+
+    pub fn truthy(&self) -> LoxValue {
+        LoxValue::Bool(self.truthy_val())
     }
 
     pub fn bool_inverted(&self) -> Result<LoxValue, BoolInversionError> {

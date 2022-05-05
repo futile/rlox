@@ -22,8 +22,19 @@ pub struct ExprEvaluator;
 impl ExprVisitor for ExprEvaluator {
     type Output = Result<LoxValue, ExprEvaluationError>;
 
-    fn visit_ternary_expr(&mut self, _expr: &parser::expr::TernaryExpr<'_>) -> Self::Output {
-        todo!()
+    fn visit_ternary_expr(&mut self, expr: &parser::expr::TernaryExpr<'_>) -> Self::Output {
+        if expr.first_operator.token_type != LoxTokenType::Questionmark
+            || expr.second_operator.token_type != LoxTokenType::Colon
+        {
+            panic!("invalid ternary operator in expression: {expr:?}");
+        }
+
+        let cond = expr.left.accept(self)?;
+        if cond.truthy_val() {
+            expr.inner.accept(self)
+        } else {
+            expr.right.accept(self)
+        }
     }
 
     fn visit_binary_expr(&mut self, expr: &parser::expr::BinaryExpr<'_>) -> Self::Output {
@@ -199,6 +210,12 @@ mod tests {
         let res = evaluate_str("\"a\" + \"b\"").unwrap();
         let LoxValue::String(s) = res else { panic!("expected string, but got: {res:?}") };
         assert_eq!(s, "ab");
+    }
+
+    #[test]
+    fn evaluate_ternary_if() {
+        evaluate_expect_bool("true ? true : false", true);
+        evaluate_expect_bool("false ? true : false", false);
     }
 
     #[test]
