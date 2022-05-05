@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use lexer::{owned_token::OwnedLoxToken, LoxToken, LoxTokenType};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -92,7 +94,7 @@ impl LoxValue {
         }
 
         match (self, rhs) {
-            (LoxValue::String(lhs), LoxValue::String(rhs)) => {
+            (lhs @ LoxValue::String(_), rhs) | (lhs, rhs @ LoxValue::String(_)) => {
                 return Ok(LoxValue::String(format!("{lhs}{rhs}")))
             }
             _ => Err(BinaryOpError {
@@ -158,6 +160,17 @@ impl<'a> TryFrom<&LoxToken<'a>> for LoxValue {
             _ => Err(TokenToValueConversionError {
                 token: token.into(),
             }),
+        }
+    }
+}
+
+impl Display for LoxValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LoxValue::Nil => write!(f, "nil"),
+            LoxValue::Bool(b) => write!(f, "{b}"),
+            LoxValue::Number(n) => write!(f, "{n}"),
+            LoxValue::String(s) => write!(f, "{s}"),
         }
     }
 }

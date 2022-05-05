@@ -124,6 +124,12 @@ mod tests {
         assert_eq!(b, expected_val);
     }
 
+    fn evaluate_expect_string(input: &str, expected_val: &str) {
+        let res = evaluate_str(input).unwrap();
+        let LoxValue::String(s) = res else { panic!("expected string, but got: {res:?}") };
+        assert_eq!(s, expected_val);
+    }
+
     #[test]
     fn evaluate_literal_number() {
         evaluate_expect_number("1", 1.0);
@@ -131,9 +137,7 @@ mod tests {
 
     #[test]
     fn evaluate_literal_string() {
-        let res = evaluate_str("\"foobar\"").unwrap();
-        let LoxValue::String(ref s) = res else { panic!("expected string, but got: {res:?}") };
-        assert_eq!(s, "foobar");
+        evaluate_expect_string("\"foobar\"", "foobar");
     }
 
     #[test]
@@ -207,9 +211,9 @@ mod tests {
 
     #[test]
     fn evaluate_binary_strings() {
-        let res = evaluate_str("\"a\" + \"b\"").unwrap();
-        let LoxValue::String(s) = res else { panic!("expected string, but got: {res:?}") };
-        assert_eq!(s, "ab");
+        evaluate_expect_string("\"a\" + \"b\"", "ab");
+        evaluate_expect_string("\"a\" + 1", "a1");
+        evaluate_expect_string("1 + \"a\"", "1a");
     }
 
     #[test]
