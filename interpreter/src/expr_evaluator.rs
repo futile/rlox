@@ -55,6 +55,8 @@ impl ExprVisitor for ExprEvaluator {
             LoxTokenType::LessEqual => lhs
                 .try_less_equal(&rhs)
                 .map_err(ExprEvaluationError::BinaryOpFailed),
+            LoxTokenType::EqualEqual => Ok(LoxValue::Bool(lhs == rhs)),
+            LoxTokenType::BangEqual => Ok(LoxValue::Bool(lhs != rhs)),
             ref tt => panic!("unexpected operator {tt:?} in binary expression: {expr:?}"),
         }
     }
@@ -163,6 +165,33 @@ mod tests {
         evaluate_expect_bool("2 <= 2", true);
         evaluate_expect_bool("2 <= 10", true);
         evaluate_expect_bool("2 <= 1", false);
+    }
+
+    #[test]
+    fn evaluate_equalities() {
+        evaluate_expect_bool("true == true", true);
+        evaluate_expect_bool("true == false", false);
+        evaluate_expect_bool("false == false", true);
+
+        evaluate_expect_bool("nil == nil", true);
+        evaluate_expect_bool("nil != nil", false);
+
+        evaluate_expect_bool("\"a\" == \"a\"", true);
+        evaluate_expect_bool("\"a\" == \"b\"", false);
+        evaluate_expect_bool("\"a\" != \"b\"", true);
+
+        evaluate_expect_bool("1 == 1", true);
+        evaluate_expect_bool("1 == 2", false);
+        evaluate_expect_bool("1 != 1", false);
+        evaluate_expect_bool("1 != 2", true);
+
+        // NOTE: We deviate from the reference implementation here, because it
+        // (arbitrarily) uses Java's `Double::equals()` semantics for NaNs, which
+        // apparently specifies NaN == NaN (as true).
+        // I find sticking to NaN != NaN better, as it's in line with IEEE 754, and what
+        // most people expect.
+        evaluate_expect_bool("(0/0) == (0/0)", false);
+        evaluate_expect_bool("(0/0) != (0/0)", true);
     }
 
     #[test]

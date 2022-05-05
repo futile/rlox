@@ -1,6 +1,6 @@
 use lexer::{owned_token::OwnedLoxToken, LoxToken, LoxTokenType};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LoxValue {
     Nil,
     Bool(bool),
@@ -66,16 +66,12 @@ impl LoxValue {
         }
     }
 
-    fn try_binary_op<F, T>(
+    fn try_binary_op<T>(
         &self,
         rhs: &LoxValue,
-        // op: impl for<'a, 'b> FnOnce(&'a f64, &'b f64) -> T,
-        op: F,
+        op: impl for<'a, 'b> FnOnce(&'a f64, &'b f64) -> T,
         op_str: &'static str,
-    ) -> Result<T, BinaryOpError>
-    where
-        for<'a, 'b> F: FnOnce(&'a f64, &'b f64) -> T,
-    {
+    ) -> Result<T, BinaryOpError> {
         match (self, rhs) {
             (LoxValue::Number(ln), LoxValue::Number(rn)) => Ok(op(ln, rn)),
             _ => Err(BinaryOpError {
