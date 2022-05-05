@@ -23,12 +23,11 @@ pub struct BoolInversionError {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Operation \"{op}\" failed, because {side} is not a {not_type}, but instead: {value:?}")]
+#[error("Operation \"{op}\" failed, lhs: {lhs:?}, rhs: {rhs:?}")]
 pub struct BinaryOpError {
     op: &'static str,
-    side: &'static str,
-    not_type: &'static str,
-    value: LoxValue,
+    lhs: LoxValue,
+    rhs: LoxValue,
 }
 
 impl LoxValue {
@@ -78,18 +77,16 @@ impl LoxValue {
         let Some(ln) = self.number() else {
             return Err(BinaryOpError {
                 op: op_str,
-                side: "lhs",
-                not_type: "number",
-                value: self.clone(),
+                lhs: self.clone(),
+                rhs: rhs.clone(),
             })
         };
 
         let Some(rn) = rhs.number() else {
             return Err(BinaryOpError {
                 op: op_str,
-                side: "rhs",
-                not_type: "number",
-                value: rhs.clone(),
+                lhs: self.clone(),
+                rhs: rhs.clone(),
             })
         };
 
@@ -97,7 +94,20 @@ impl LoxValue {
     }
 
     pub fn try_add(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
-        self.try_binary_op(rhs, Add::add, "add")
+        if let v @ Ok(_) = self.try_binary_op(rhs, Add::add, "add") {
+            return v;
+        }
+
+        match (self, rhs) {
+            (LoxValue::String(lhs), LoxValue::String(rhs)) => {
+                return Ok(LoxValue::String(format!("{lhs}{rhs}")))
+            }
+            _ => Err(BinaryOpError {
+                op: "add",
+                lhs: self.clone(),
+                rhs: rhs.clone(),
+            }),
+        }
     }
 
     pub fn try_sub(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {

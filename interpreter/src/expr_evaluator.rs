@@ -143,6 +143,13 @@ mod tests {
     }
 
     #[test]
+    fn evaluate_binary_strings() {
+        let res = evaluate_str("\"a\" + \"b\"").unwrap();
+        let LoxValue::String(s) = res else { panic!("expected string, but got: {res:?}") };
+        assert_eq!(s, "ab");
+    }
+
+    #[test]
     fn evaluate_grouping() {
         let res = evaluate_str("(nil)").unwrap();
         assert_matches!(res, LoxValue::Nil);
