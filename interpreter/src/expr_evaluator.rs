@@ -2,7 +2,7 @@ use lexer::LoxTokenType;
 use parser::expr::ExprVisitor;
 
 use crate::lox_value::{
-    BoolInversionError, LoxValue, NumberNegationError, TokenToValueConversionError,
+    BinaryOpError, BoolInversionError, LoxValue, NumberNegationError, TokenToValueConversionError,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -13,6 +13,8 @@ pub enum ExprEvaluationError {
     NegationFailed(NumberNegationError),
     #[error(transparent)]
     InversionFailed(BoolInversionError),
+    #[error(transparent)]
+    BinaryOpFailed(BinaryOpError),
 }
 
 pub struct ExprEvaluator;
@@ -25,10 +27,24 @@ impl ExprVisitor for ExprEvaluator {
     }
 
     fn visit_binary_expr(&mut self, expr: &parser::expr::BinaryExpr<'_>) -> Self::Output {
-        let _left = expr.left.accept(self)?;
-        let _right = expr.right.accept(self)?;
+        let lhs = expr.left.accept(self)?;
+        let rhs = expr.right.accept(self)?;
 
-        todo!()
+        match expr.operator.token_type {
+            LoxTokenType::Plus => lhs
+                .try_add(&rhs)
+                .map_err(ExprEvaluationError::BinaryOpFailed),
+            LoxTokenType::Minus => lhs
+                .try_sub(&rhs)
+                .map_err(ExprEvaluationError::BinaryOpFailed),
+            LoxTokenType::Star => lhs
+                .try_mul(&rhs)
+                .map_err(ExprEvaluationError::BinaryOpFailed),
+            LoxTokenType::Slash => lhs
+                .try_div(&rhs)
+                .map_err(ExprEvaluationError::BinaryOpFailed),
+            ref tt => panic!("unexpected operator {tt:?} in binary expression: {expr:?}"),
+        }
     }
 
     fn visit_unary_expr(&mut self, expr: &parser::expr::UnaryExpr<'_>) -> Self::Output {
@@ -71,11 +87,15 @@ mod tests {
         expr.accept(&mut ExprEvaluator)
     }
 
+    fn evaluate_expect_number(input: &str, expected_val: f64) {
+        let res = evaluate_str(input).unwrap();
+        let LoxValue::Number(n) = res else { panic!("expected number, but got: {res:?}") };
+        assert_eq!(n, expected_val);
+    }
+
     #[test]
     fn evaluate_literal_number() {
-        let res = evaluate_str("1").unwrap();
-        let LoxValue::Number(num) = res else { panic!("expected number, but got: {res:?}") };
-        assert_eq!(num, 1.0);
+        evaluate_expect_number("1", 1.0);
     }
 
     #[test]
@@ -111,9 +131,15 @@ mod tests {
 
     #[test]
     fn evaluate_unary_minus() {
-        let res = evaluate_str("-1").unwrap();
-        let LoxValue::Number(num) = res else { panic!("expected number, but got: {res:?}") };
-        assert_eq!(num, -1.0);
+        evaluate_expect_number("-1", -1.0);
+    }
+
+    #[test]
+    fn evaluate_binary_nums() {
+        evaluate_expect_number("10 + 2", 12.0);
+        evaluate_expect_number("10 - 2", 8.0);
+        evaluate_expect_number("10 * 2", 20.0);
+        evaluate_expect_number("10 / 2", 5.0);
     }
 
     #[test]

@@ -1,3 +1,5 @@
+use std::ops::{Add, Div, Mul, Sub};
+
 use lexer::{owned_token::OwnedLoxToken, LoxToken, LoxTokenType};
 
 #[derive(Debug, Clone)]
@@ -9,26 +11,44 @@ pub enum LoxValue {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Could not negate value because its not a number: {value:?}")]
+#[error("Could not negate value because it's not a number: {value:?}")]
 pub struct NumberNegationError {
     value: LoxValue,
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Could not invert value because its not a bool: {value:?}")]
+#[error("Could not invert value because it's not a bool: {value:?}")]
 pub struct BoolInversionError {
     value: LoxValue,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("Operation \"{op}\" failed, because {side} is not a {not_type}, but instead: {value:?}")]
+pub struct BinaryOpError {
+    op: &'static str,
+    side: &'static str,
+    not_type: &'static str,
+    value: LoxValue,
+}
+
 impl LoxValue {
-    pub fn number_negated(&self) -> Result<LoxValue, NumberNegationError> {
-        if let LoxValue::Number(ref n) = self {
-            Ok(LoxValue::Number(-n))
+    pub fn number(&self) -> Option<f64> {
+        if let LoxValue::Number(n) = self {
+            Some(*n)
         } else {
-            Err(NumberNegationError {
-                value: self.clone(),
-            })
+            None
         }
+    }
+
+    pub fn number_negated(&self) -> Result<LoxValue, NumberNegationError> {
+        self.number().map_or_else(
+            || {
+                Err(NumberNegationError {
+                    value: self.clone(),
+                })
+            },
+            |n| Ok(LoxValue::Number(-n)),
+        )
     }
 
     pub fn truthy(&self) -> LoxValue {
@@ -47,6 +67,49 @@ impl LoxValue {
                 value: self.clone(),
             })
         }
+    }
+
+    fn try_binary_op(
+        &self,
+        rhs: &LoxValue,
+        op: impl FnOnce(f64, f64) -> f64,
+        op_str: &'static str,
+    ) -> Result<LoxValue, BinaryOpError> {
+        let Some(ln) = self.number() else {
+            return Err(BinaryOpError {
+                op: op_str,
+                side: "lhs",
+                not_type: "number",
+                value: self.clone(),
+            })
+        };
+
+        let Some(rn) = rhs.number() else {
+            return Err(BinaryOpError {
+                op: op_str,
+                side: "rhs",
+                not_type: "number",
+                value: rhs.clone(),
+            })
+        };
+
+        Ok(LoxValue::Number(op(ln, rn)))
+    }
+
+    pub fn try_add(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
+        self.try_binary_op(rhs, Add::add, "add")
+    }
+
+    pub fn try_sub(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
+        self.try_binary_op(rhs, Sub::sub, "sub")
+    }
+
+    pub fn try_mul(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
+        self.try_binary_op(rhs, Mul::mul, "mul")
+    }
+
+    pub fn try_div(&self, rhs: &LoxValue) -> Result<LoxValue, BinaryOpError> {
+        self.try_binary_op(rhs, Div::div, "div")
     }
 }
 
