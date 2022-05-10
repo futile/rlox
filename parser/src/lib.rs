@@ -8,6 +8,7 @@ use thiserror::Error;
 
 pub mod ast_printer;
 pub mod expr;
+pub mod stmt;
 
 #[derive(Error, Debug)]
 pub enum ParserError {
